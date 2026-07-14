@@ -1,0 +1,49 @@
+{
+  "name": "ArrSuite",
+  "slug": "arrsuite",
+  "categories": [
+    14
+  ],
+  "date_created": "2026-07-14",
+  "type": "ct",
+  "updateable": true,
+  "privileged": false,
+  "has_arm": true,
+  "interface_port": null,
+  "documentation": "https://wiki.servarr.com/",
+  "website": "https://wiki.servarr.com/",
+  "logo": "https://cdn.jsdelivr.net/gh/selfhst/icons@main/webp/servarr.webp",
+  "description": "Installs a selectable group of Arr applications, including Sonarr, Radarr, Lidarr, and Byparr, into one LXC and manages them through a shared add-and-update command.",
+  "install_methods": [
+    {
+      "type": "default",
+      "script": "ct/arrsuite.sh",
+      "config_path": "/opt/arrsuite/installed.apps",
+      "resources": {
+        "cpu": 2,
+        "ram": 4096,
+        "hdd": 8,
+        "os": "Debian",
+        "version": "13"
+      }
+    }
+  ],
+  "default_credentials": {
+    "username": null,
+    "password": null
+  },
+  "notes": [
+    {
+      "text": "The selected applications share one LXC, one backup boundary, and one failure domain.",
+      "type": "info"
+    },
+    {
+      "text": "Byparr is currently available only on amd64; Sonarr, Radarr, and Lidarr also support arm64.",
+      "type": "warning"
+    },
+    {
+      "text": "Use 'arrsuite add' to install another supported application and 'update' to update every installed application.",
+      "type": "info"
+    }
+  ]
+}

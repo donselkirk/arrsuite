@@ -1,0 +1,184 @@
+# ArrSuite Community Script — v1.2
+
+This prototype creates one Debian LXC and lets the user choose which supported Arr applications to install. The current version supports:
+
+- Sonarr — port 8989
+- Radarr — port 7878
+- Lidarr — port 8686 (optional)
+- Byparr — port 8191 (optional; amd64 only)
+
+The implementation is intentionally bare-metal inside the LXC. It does not install Docker.
+
+Sonarr and Radarr are selected by default. Lidarr and Byparr are optional and unchecked in the installation checklist.
+
+## Included upstream files
+
+```text
+ct/arrsuite.sh
+install/arrsuite-install.sh
+json/arrsuite.json
+```
+
+The `tests/` directory and this README are development aids and do not necessarily need to be included in the final upstream pull request.
+
+## User commands inside the LXC
+
+```bash
+# Open a checklist containing apps that are not installed yet
+arrsuite add
+
+# Add one or more named apps without the checklist
+arrsuite add sonarr radarr
+arrsuite add lidarr
+arrsuite add byparr
+
+# Update every installed app
+update
+
+# Equivalent direct manager command
+arrsuite update
+
+# Update only selected installed apps
+arrsuite update sonarr radarr
+arrsuite update lidarr
+
+# Show supported apps, ports, installation state, and service state
+arrsuite list
+
+# Show systemd status for installed apps
+arrsuite status
+```
+
+## Upgrade an existing ArrSuite LXC to v1.2
+
+The package includes the updated manager as `tools/arrsuite-manager`. To add Lidarr to a container created by v1.1, copy the manager to the Proxmox host and run:
+
+```bash
+pct push <CTID> arrsuite-manager /usr/local/bin/arrsuite
+pct exec <CTID> -- chmod 0755 /usr/local/bin/arrsuite
+pct exec <CTID> -- arrsuite add lidarr
+```
+
+This replaces only the ArrSuite manager. It does not alter existing Sonarr, Radarr, or Byparr data. Lidarr then installs into its normal paths and joins the shared `update` command.
+
+## Console auto-login
+
+When the root password is left blank during LXC creation, the installer explicitly configures both console paths used by Proxmox:
+
+```text
+container-getty@1.service   Proxmox web console (/dev/tty1)
+console-getty.service       pct console / serial console (/dev/console)
+```
+
+For a container created with an earlier prototype, run the included repair script as root inside the LXC:
+
+```bash
+bash tools/fix-console-autologin.sh
+```
+
+From the Proxmox host, `pct enter <CTID>` can be used to enter an existing container without relying on its console login.
+
+## Design
+
+The standard Community Scripts container and installer structure is retained:
+
+1. `ct/arrsuite.sh` creates the LXC and exposes the normal `/usr/bin/update` workflow.
+2. `install/arrsuite-install.sh` performs shared container setup once.
+3. The installer saves the Community Scripts function bundle at `/opt/arrsuite/lib/community-functions.sh`.
+4. `/usr/local/bin/arrsuite` sources that bundle when adding or updating an app.
+5. `/opt/arrsuite/installed.apps` is the small registry used to decide which apps participate in `update`.
+
+The Sonarr, Radarr, Lidarr, and Byparr modules closely follow their existing Community Scripts implementations. In particular, they reuse:
+
+- `fetch_and_deploy_gh_release`
+- `check_for_gh_release`
+- `arch_resolve`
+- `setup_uv`
+- the existing package lists, application paths, data paths, and systemd units
+
+Each application keeps its normal paths, so troubleshooting information from the individual Community Scripts remains useful:
+
+```text
+/opt/Sonarr       /var/lib/sonarr       sonarr.service
+/opt/Radarr       /var/lib/radarr       radarr.service
+/opt/Lidarr       /var/lib/lidarr       lidarr.service
+/opt/Byparr                              byparr.service
+```
+
+## Resource defaults
+
+The aggregate defaults are deliberately higher than the individual scripts:
+
+- 2 CPU cores
+- 4096 MB RAM
+- 8 GB disk
+- Debian 13
+- unprivileged LXC
+
+Users installing only Sonarr and Radarr can reduce the memory in Advanced Settings. Installing all four applications is the reason for the 4 GB default.
+
+## Local checks
+
+From the root of this package:
+
+```bash
+bash tests/static-checks.sh
+```
+
+This checks the outer scripts, extracts and checks the embedded `arrsuite` manager, validates the JSON metadata, and runs ShellCheck when it is installed.
+
+A real acceptance test still requires Proxmox because syntax checks cannot validate LXC creation, systemd startup, release asset matching, or application web interfaces.
+
+## Proxmox test matrix
+
+Before submitting upstream, test at least these cases on a disposable Proxmox node:
+
+| Case | Selection | Expected result |
+|---|---|---|
+| Fresh amd64 | Sonarr + Radarr | Both services active; ports 8989 and 7878 answer |
+| Fresh amd64 | All four | All services active; ports 8989, 7878, 8686, and 8191 answer |
+| Add later | Initially Sonarr, then `arrsuite add radarr` | Existing Sonarr data remains; Radarr is added |
+| Update all | Run `update` after installing all four | Every registered app is checked; one failure does not prevent later apps being attempted |
+| No update | Run `update` twice | Second run reports current releases without replacing data |
+| ARM64 | Sonarr + Radarr + Lidarr | All three install; Byparr selection fails with a clear architecture message |
+| Reboot | Reboot the LXC | Every installed service returns active |
+| Blank password | Leave root password blank | Web console and `pct console` auto-login as root |
+| Backup restore | Back up and restore the LXC | App configurations and registry remain intact |
+
+## Testing from a fork
+
+New scripts currently belong in the `community-scripts/ProxmoxVED` development repository. Create a feature branch in your fork, copy the three upstream files into their matching directories, and adjust the `build.func` source in `ct/arrsuite.sh` to your fork/branch while testing. Run the CT script from the Proxmox host.
+
+Suggested branch name:
+
+```text
+feat/add-arrsuite
+```
+
+Suggested commit:
+
+```text
+feat: add selectable multi-app ArrSuite container
+```
+
+## Items to resolve before an upstream PR
+
+1. Ask maintainers whether an aggregate script with several web ports is acceptable under one metadata entry. `interface_port` is currently `null` for that reason.
+2. Confirm the preferred aggregate name and icon. The metadata currently uses `ArrSuite` and a proposed Servarr icon URL.
+3. Confirm whether persisting the installer’s Community Scripts function bundle is acceptable. It avoids custom GitHub logic and enables future app additions, but maintainers may prefer a project-provided runtime library or a refresh command.
+4. Decide whether ARM64 should remain enabled for the container even though Byparr itself is amd64-only.
+5. Test the current Sonarr, Radarr, and Lidarr release asset patterns against both amd64 and arm64.
+6. Consider a snapshot warning before updating several applications in one operation.
+
+## Adding another application module
+
+A future module should add these pieces to the embedded manager:
+
+1. Add its lowercase name to `SUPPORTED_APPS`.
+2. Add label, description, and port entries.
+3. Add `install_<app>` using the existing Community installer as the source of truth.
+4. Add `update_<app>` using the existing Community CT update function as the source of truth.
+5. Add the application to the two `case` statements.
+6. Test install, add-later, update, reboot, and failure behavior.
+
+Keeping each module close to the corresponding upstream script is more maintainable than inventing one generic installer for applications that only appear similar.
