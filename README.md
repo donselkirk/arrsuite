@@ -41,6 +41,8 @@ The `tests/` directory and this README are development aids and do not necessari
 # Open a checklist containing apps that are not installed yet
 arrsuite add
 
+# Esc or Cancel closes the checklist without changing installed applications
+
 # Add one or more named apps without the checklist
 arrsuite add sonarr radarr
 arrsuite add lidarr

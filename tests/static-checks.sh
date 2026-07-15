@@ -93,6 +93,10 @@ grep -q 'prowlarr.service' "$install_script"
 grep -q '9696' "$install_script"
 grep -q '\[\[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" \]\] && default_state="OFF"' "$install_script"
 grep -q 'check_for_gh_release' "$install_script"
+if grep -q 'return 130' "$install_script"; then
+  echo "Checklist cancellation must not trigger the global error handler." >&2
+  exit 1
+fi
 grep -q 'setup_uv' "$install_script"
 grep -q 'configure_arrsuite_console_autologin' "$install_script"
 grep -q '^configure_arrsuite_console_autologin$' "$install_script"

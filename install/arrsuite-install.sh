@@ -668,7 +668,7 @@ choose_uninstalled_apps() {
       18 78 8 \
       "${options[@]}" \
       --separate-output \
-      3>&1 1>/dev/tty 2>&3 </dev/tty)" || return 130
+      3>&1 1>/dev/tty 2>&3 </dev/tty)" || return 0
     printf '%s\n' "$selection"
     return 0
   fi
