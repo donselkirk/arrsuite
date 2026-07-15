@@ -10,7 +10,7 @@ mkdir -p "$test_root/bin" "$test_root/lib" "$test_root/run" "$test_root/runtime"
 cat >"$test_root/lib/community-functions.sh" <<'EOF_FUNCTIONS'
 color() { :; }
 msg_info() { :; }
-msg_ok() { :; }
+msg_ok() { printf '%s\n' "$*"; }
 msg_warn() { :; }
 msg_error() { :; }
 arch_resolve() { printf '%s' "$1"; }
@@ -88,7 +88,10 @@ fi
 status_output="$(run_manager help)"
 grep -q 'arrsuite update \[app ...\]' <<<"$status_output"
 
-run_manager self-update
+self_update_output="$(run_manager self-update)"
+grep -q 'Updated ArrSuite Runtime to v9.8.7' <<<"$self_update_output"
+current_output="$(run_manager self-update)"
+grep -q 'ArrSuite Runtime is Already Current at v9.8.7' <<<"$current_output"
 cmp -s "$manager" "$test_root/runtime/arrsuite"
 cmp -s "$project_root/tools/arrsuite-motd.sh" "$test_root/runtime/arrsuite-motd.sh"
 cmp -s "$project_root/tools/fix-console-autologin.sh" "$test_root/runtime/fix-console-autologin.sh"
