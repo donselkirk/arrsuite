@@ -60,6 +60,7 @@ grep -q '^set +u$' "$bootstrap_script" || {
 bash -u -c 'source <(sed -n "1,5p" "$1"); [[ $- != *u* ]]' _ "$bootstrap_script"
 grep -q 'arrsuite update' "$ct_script"
 grep -q 'fetch_and_deploy_gh_release' "$install_script"
+grep -q 'community-tools.sh' "$install_script"
 grep -q 'SUPPORTED_APPS=(sonarr radarr lidarr byparr)' "$install_script"
 grep -q 'install_lidarr()' "$install_script"
 grep -q 'update_lidarr()' "$install_script"

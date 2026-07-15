@@ -14,15 +14,18 @@ msg_ok() { :; }
 msg_warn() { :; }
 msg_error() { :; }
 arch_resolve() { printf '%s' "$1"; }
+EOF_FUNCTIONS
+cat >"$test_root/lib/community-tools.sh" <<'EOF_TOOLS'
 fetch_and_deploy_gh_release() { return 1; }
 check_for_gh_release() { return 1; }
 setup_uv() { return 1; }
-EOF_FUNCTIONS
+EOF_TOOLS
 
 run_manager() {
   ARRSUITE_BASE_DIR="$test_root" \
     ARRSUITE_ALLOW_NON_ROOT=1 \
     ARRSUITE_FUNCTIONS_LIBRARY="$test_root/lib/community-functions.sh" \
+    ARRSUITE_TOOLS_LIBRARY="$test_root/lib/community-tools.sh" \
     ARRSUITE_LOCK_FILE="$test_root/run/arrsuite.lock" \
     "$manager" "$@"
 }

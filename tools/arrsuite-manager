@@ -9,6 +9,7 @@ STD="${STD:-}"
 readonly BASE_DIR="${ARRSUITE_BASE_DIR:-/opt/arrsuite}"
 readonly REGISTRY="${ARRSUITE_REGISTRY:-${BASE_DIR}/installed.apps}"
 readonly FUNCTIONS_LIBRARY="${ARRSUITE_FUNCTIONS_LIBRARY:-${BASE_DIR}/lib/community-functions.sh}"
+readonly TOOLS_LIBRARY="${ARRSUITE_TOOLS_LIBRARY:-${BASE_DIR}/lib/community-tools.sh}"
 readonly LOCK_FILE="${ARRSUITE_LOCK_FILE:-/run/lock/arrsuite.lock}"
 readonly -a SUPPORTED_APPS=(sonarr radarr lidarr byparr)
 
@@ -43,11 +44,21 @@ declare -A APP_PORT=(
   exit 1
 }
 
+[[ -r "$TOOLS_LIBRARY" ]] || {
+  echo "Missing Community Scripts tools library: ${TOOLS_LIBRARY}" >&2
+  exit 1
+}
+
 # Persist the same Community Scripts helper bundle used by the original
 # Sonarr, Radarr, Lidarr, and Byparr installers. This lets future `arrsuite add` and
 # `arrsuite update` operations reuse fetch_and_deploy_gh_release,
 # check_for_gh_release, setup_uv, arch_resolve, and the standard UI functions.
 source "$FUNCTIONS_LIBRARY"
+source "$TOOLS_LIBRARY"
+declare -F fetch_and_deploy_gh_release >/dev/null || {
+  echo "Community Scripts tools library is incomplete: ${TOOLS_LIBRARY}" >&2
+  exit 1
+}
 color
 
 install -d -m 0755 "$BASE_DIR" "$(dirname "$LOCK_FILE")"
