@@ -53,6 +53,11 @@ if grep -Eq '^set -[^[:space:]]*u' "$bootstrap_script"; then
   echo "The bootstrap must not enable nounset; Community Scripts uses optional unset variables." >&2
   exit 1
 fi
+grep -q '^set +u$' "$bootstrap_script" || {
+  echo "The bootstrap must explicitly disable inherited nounset." >&2
+  exit 1
+}
+bash -u -c 'source <(sed -n "1,5p" "$1"); [[ $- != *u* ]]' _ "$bootstrap_script"
 grep -q 'arrsuite update' "$ct_script"
 grep -q 'fetch_and_deploy_gh_release' "$install_script"
 grep -q 'SUPPORTED_APPS=(sonarr radarr lidarr byparr)' "$install_script"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Community Scripts helpers reference several optional environment variables
-# directly, so nounset (-u) is intentionally not enabled in this bootstrap.
+# directly. Explicitly disable inherited nounset before loading any helpers.
+set +u
 set -Eeo pipefail
 
 readonly REPOSITORY_RAW_URL="${ARRSUITE_REPOSITORY_RAW_URL:-https://raw.githubusercontent.com/donselkirk/arrsuite/main}"
