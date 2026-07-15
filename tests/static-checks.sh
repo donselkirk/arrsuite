@@ -107,10 +107,11 @@ if grep -q 'return 130' "$install_script"; then
   echo "Checklist cancellation must not trigger the global error handler." >&2
   exit 1
 fi
-if [[ "$(grep -c "clear >/dev/tty" "$install_script")" -lt 2 ]]; then
-  echo "The application checklist must clear the terminal after confirm or cancel." >&2
+grep -A3 'mapfile -t apps.*choose_uninstalled_apps' "$install_script" \
+  | grep -q "printf '\\\\033\[2J\\\\033\[H' >/dev/tty" || {
+  echo "The parent manager must clear the terminal after the checklist exits." >&2
   exit 1
-fi
+}
 grep -q 'setup_uv' "$install_script"
 grep -q 'configure_arrsuite_console_autologin' "$install_script"
 grep -q '^configure_arrsuite_console_autologin$' "$install_script"
