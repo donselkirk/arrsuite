@@ -7,9 +7,11 @@ bootstrap_script="${project_root}/arrsuite.sh"
 install_script="${project_root}/install/arrsuite-install.sh"
 json_file="${project_root}/json/arrsuite.json"
 manager_tmp="$(mktemp)"
+motd_tmp="$(mktemp)"
 standalone_manager="${project_root}/tools/arrsuite-manager"
 behavior_test="${project_root}/tests/manager-behavior.sh"
-trap 'rm -f "$manager_tmp"' EXIT
+standalone_motd="${project_root}/tools/arrsuite-motd.sh"
+trap 'rm -f "$manager_tmp" "$motd_tmp"' EXIT
 
 printf 'Checking Bash syntax...\n'
 bash -n "$ct_script"
@@ -29,6 +31,22 @@ awk '
 bash -n "$manager_tmp"
 bash -n "$standalone_manager"
 bash -n "$behavior_test"
+bash -n "$standalone_motd"
+
+awk '
+  /^  cat >\/etc\/profile\.d\/00_lxc-details\.sh <<'"'"'EOF_MOTD'"'"'$/ { capture=1; next }
+  /^EOF_MOTD$/ { capture=0 }
+  capture
+' "$install_script" >"$motd_tmp"
+[[ -s "$motd_tmp" ]] || {
+  echo "Unable to extract the ArrSuite login banner." >&2
+  exit 1
+}
+bash -n "$motd_tmp"
+cmp -s "$motd_tmp" "$standalone_motd" || {
+  echo "Standalone ArrSuite login banner is out of sync with the installer." >&2
+  exit 1
+}
 cmp -s "$manager_tmp" "$standalone_manager" || {
   echo "Standalone ArrSuite manager is out of sync with the embedded manager." >&2
   exit 1
@@ -71,6 +89,10 @@ grep -q '\[\[ "$app" == "lidarr" || "$app" == "byparr" \]\] && default_state="OF
 grep -q 'check_for_gh_release' "$install_script"
 grep -q 'setup_uv' "$install_script"
 grep -q 'configure_arrsuite_console_autologin' "$install_script"
+grep -q 'configure_arrsuite_motd' "$install_script"
+grep -q '/opt/arrsuite/installed.apps' "$install_script"
+grep -q 'Installed Applications:' "$install_script"
+grep -q ': >/etc/motd' "$install_script"
 grep -q 'container-getty@1.service.d/override.conf' "$install_script"
 grep -q 'console-getty.service.d/override.conf' "$install_script"
 grep -q 'exec /usr/local/bin/arrsuite update' "$install_script"
@@ -82,7 +104,7 @@ bash "$behavior_test"
 if command -v shellcheck >/dev/null 2>&1; then
   printf 'Running ShellCheck...\n'
   # SC1090/SC1091: function libraries are generated or downloaded at runtime.
-  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh"
+  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh"
 else
   printf 'ShellCheck not installed; skipping it.\n'
 fi

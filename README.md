@@ -91,6 +91,24 @@ bash tools/fix-console-autologin.sh
 
 From the Proxmox host, `pct enter <CTID>` can be used to enter an existing container without relying on its console login.
 
+## Login banner
+
+ArrSuite replaces the duplicate static and dynamic Community Scripts banners
+with one dynamic login banner. It reads `/opt/arrsuite/installed.apps` whenever
+a shell starts and shows every registered application, its URL and port, and
+its current systemd state. Applications added with `arrsuite add` therefore
+appear on the next login automatically; removing an application from the
+registry removes it from the next banner.
+
+To apply the banner to an existing ArrSuite container, run inside the LXC:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/donselkirk/arrsuite/main/tools/arrsuite-motd.sh \
+  -o /etc/profile.d/00_lxc-details.sh
+chmod 0755 /etc/profile.d/00_lxc-details.sh
+: >/etc/motd
+```
+
 ## Design
 
 The standard Community Scripts container and installer structure is retained:

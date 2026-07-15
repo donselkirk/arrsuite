@@ -52,6 +52,67 @@ EOF_CONSOLE
   msg_ok "Configured Console Auto-Login"
 }
 
+configure_arrsuite_motd() {
+  msg_info "Configuring ArrSuite Login Banner"
+
+  # Community Scripts deliberately provides both a static PAM MOTD and a
+  # dynamic profile banner. ArrSuite uses only the dynamic banner so it can
+  # include the current application registry without displaying twice.
+  : >/etc/motd
+  if [[ -d /etc/update-motd.d ]]; then
+    chmod -x /etc/update-motd.d/* 2>/dev/null || true
+  fi
+
+  cat >/etc/profile.d/00_lxc-details.sh <<'EOF_MOTD'
+#!/usr/bin/env bash
+
+# Show once per login shell even if profile.d is sourced more than once.
+[[ "${ARRSUITE_MOTD_SHOWN:-0}" == "1" ]] && return 0
+export ARRSUITE_MOTD_SHOWN=1
+
+registry="/opt/arrsuite/installed.apps"
+ip_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
+if [[ -z "$ip_address" ]]; then
+  ip_address="$(ip -4 addr show scope global 2>/dev/null | awk '/inet / {sub(/\/.*/, "", $2); print $2; exit}')"
+fi
+
+printf '\n\033[1;92mArrSuite LXC Container\033[0m\n'
+printf ' OS: %s\n' "$(. /etc/os-release && printf '%s %s' "$NAME" "$VERSION_ID")"
+printf ' Hostname: %s\n' "$(hostname)"
+printf ' IP Address: %s\n' "${ip_address:-unavailable}"
+printf ' Repository: https://github.com/donselkirk/arrsuite\n'
+printf '\n Installed Applications:\n'
+
+installed_count=0
+if [[ -r "$registry" ]]; then
+  while IFS= read -r app; do
+    case "$app" in
+      sonarr) label="Sonarr"; port="8989" ;;
+      radarr) label="Radarr"; port="7878" ;;
+      lidarr) label="Lidarr"; port="8686" ;;
+      byparr) label="Byparr"; port="8191" ;;
+      *) continue ;;
+    esac
+
+    state="$(systemctl is-active "$app" 2>/dev/null || true)"
+    [[ -n "$state" ]] || state="unknown"
+    printf '  - %-7s http://%s:%s (%s)\n' "$label" "${ip_address:-localhost}" "$port" "$state"
+    installed_count=$((installed_count + 1))
+  done <"$registry"
+fi
+
+if ((installed_count == 0)); then
+  printf '  - None; run: arrsuite add\n'
+fi
+printf '\n'
+
+unset registry ip_address installed_count app label port state
+EOF_MOTD
+  chmod 0755 /etc/profile.d/00_lxc-details.sh
+
+  msg_ok "Configured ArrSuite Login Banner"
+}
+
 msg_info "Installing ArrSuite Manager Dependencies"
 $STD apt install -y whiptail
 msg_ok "Installed ArrSuite Manager Dependencies"
@@ -716,7 +777,7 @@ msg_ok "Installed Selected ArrSuite Applications"
 
 motd_ssh
 customize
-configure_arrsuite_console_autologin
+configure_arrsuite_motd
 
 # The shared customize() helper creates the standard remote update wrapper.
 # Until ArrSuite is merged upstream, keep the prototype self-contained and
