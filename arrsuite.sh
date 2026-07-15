@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+# Community Scripts helpers reference several optional environment variables
+# directly, so nounset (-u) is intentionally not enabled in this bootstrap.
+set -Eeo pipefail
 
 readonly REPOSITORY_RAW_URL="${ARRSUITE_REPOSITORY_RAW_URL:-https://raw.githubusercontent.com/donselkirk/arrsuite/main}"
 readonly COMMUNITY_RAW_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main}"

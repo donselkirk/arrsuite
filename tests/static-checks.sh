@@ -49,6 +49,10 @@ grep -q 'function update_script()' "$ct_script"
 grep -q 'ARRSUITE_BUILD_FUNC_PATH' "$ct_script"
 grep -q 'ARRSUITE_INSTALL_URL' "$bootstrap_script"
 grep -q 'donselkirk/arrsuite/main' "$bootstrap_script"
+if grep -Eq '^set -[^[:space:]]*u' "$bootstrap_script"; then
+  echo "The bootstrap must not enable nounset; Community Scripts uses optional unset variables." >&2
+  exit 1
+fi
 grep -q 'arrsuite update' "$ct_script"
 grep -q 'fetch_and_deploy_gh_release' "$install_script"
 grep -q 'SUPPORTED_APPS=(sonarr radarr lidarr byparr)' "$install_script"
