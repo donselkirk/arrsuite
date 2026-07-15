@@ -9,7 +9,12 @@ on:
       - "ct/**/*.sh"
       - "install/**/*.sh"
       - "tools/arrsuite-manager"
-      - "tools/**/*.sh"
+      - "tools/arrsuite-motd.sh"
+      - "tools/fix-console-autologin.sh"
+      - "tools/seerr-backup.sh"
+      - "tools/build-artifacts.sh"
+      - "apps/**/*.sh"
+      - "src/**/*.in"
 
 permissions:
   contents: write
@@ -34,6 +39,8 @@ jobs:
 
       - name: Run ArrSuite validation
         run: |
+          bash tools/build-artifacts.sh
+          git diff --exit-code
           bash tests/static-checks.sh
           git diff --check
 

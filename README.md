@@ -269,6 +269,7 @@ Standalone copies of the embedded manager and login banner live in `tools/`.
 Run the complete local validation suite after every change:
 
 ```bash
+bash tools/build-artifacts.sh
 bash tests/static-checks.sh
 git diff --check
 ```
@@ -280,6 +281,40 @@ Pushes to `main` that change runtime scripts run automated validation and, when
 successful, publish the next GitHub release with generated notes, checksums,
 and installation assets. Documentation-only changes do not create releases.
 Production installs and self-updates always use the latest successful release.
+
+### Integrating Community Scripts changes
+
+Application-specific code lives in `apps/<app>.sh` rather than being edited in
+the generated manager. Each module contains that application's service,
+dependencies, install logic, update logic, release matching, data paths, and
+architecture rules. Shared manager behavior lives in
+`src/arrsuite-manager.sh.in`.
+
+`tools/upstream-lock.json` records the exact Community Scripts install and CT
+script blobs last reviewed for every application. A weekly GitHub Actions check
+compares those references with the current development repository, falling
+back to the production repository for scripts that are not present in
+development. It uploads a summary and focused diffs when upstream changes.
+
+To perform the same check locally:
+
+```bash
+bash tools/check-upstream.sh
+```
+
+An upstream difference is a review prompt, not an automatic update. Compare the
+generated files in `upstream-report/`, import the applicable behavior into the
+corresponding module, update its locked blob references, then regenerate and
+test the release artifacts:
+
+```bash
+bash tools/build-artifacts.sh
+bash tests/static-checks.sh
+git diff --check
+```
+
+This keeps releases reproducible and prevents an unreviewed upstream commit
+from changing an existing ArrSuite installation.
 
 Local checks cannot prove LXC creation, systemd behavior, release downloads, or
 web-interface availability. Test release-affecting changes on a disposable
@@ -313,7 +348,7 @@ Proxmox node before submitting upstream.
 
 ### Adding another application
 
-When adding a module, update every user-facing and runtime surface: supported
+When adding a module, create `apps/<app>.sh` and update every user-facing and runtime surface: supported
 application arrays, labels, descriptions, ports, checklist, help output, login
 banner, completion output, JSON metadata, README, and tests. Add isolated
 install and update functions, service handling, dispatch cases, dependencies,

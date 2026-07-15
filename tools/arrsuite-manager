@@ -522,6 +522,7 @@ acquire_lock() {
   }
 }
 
+# Generated from apps/sonarr.sh. Do not edit this block directly.
 write_sonarr_service() {
   cat > /etc/systemd/system/sonarr.service <<'EOF_SERVICE'
 [Unit]
@@ -538,213 +539,6 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF_SERVICE
-}
-
-write_radarr_service() {
-  cat > /etc/systemd/system/radarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Radarr Daemon
-After=syslog.target network.target
-
-[Service]
-UMask=0002
-Type=simple
-ExecStart=/opt/Radarr/Radarr -nobrowser -data=/var/lib/radarr/
-TimeoutStopSec=20
-KillMode=process
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-}
-
-write_lidarr_service() {
-  cat > /etc/systemd/system/lidarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Lidarr Daemon
-After=syslog.target network.target
-
-[Service]
-UMask=0002
-Type=simple
-ExecStart=/opt/Lidarr/Lidarr -nobrowser -data=/var/lib/lidarr/
-TimeoutStopSec=20
-KillMode=process
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-}
-
-write_prowlarr_service() {
-  cat > /etc/systemd/system/prowlarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Prowlarr Daemon
-After=syslog.target network.target
-
-[Service]
-UMask=0002
-Type=simple
-ExecStart=/opt/Prowlarr/Prowlarr -nobrowser -data=/var/lib/prowlarr/
-TimeoutStopSec=20
-KillMode=process
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-}
-
-write_byparr_service() {
-  cat > /etc/systemd/system/byparr.service <<'EOF_SERVICE'
-[Unit]
-Description=Byparr
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/Byparr
-ExecStart=/usr/local/bin/uv run python3 main.py
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-}
-
-write_flaresolverr_service() {
-  cat > /etc/systemd/system/flaresolverr.service <<'EOF_SERVICE'
-[Unit]
-Description=FlareSolverr
-After=network.target
-
-[Service]
-SyslogIdentifier=flaresolverr
-Restart=always
-RestartSec=5
-Type=simple
-Environment="LOG_LEVEL=info"
-Environment="CAPTCHA_SOLVER=none"
-Environment="PORT=8192"
-WorkingDirectory=/opt/flaresolverr
-ExecStart=/opt/flaresolverr/flaresolverr
-TimeoutStopSec=30
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-}
-
-write_seerr_service() {
-  install -d -m 0755 /etc/seerr
-  cat > /etc/seerr/seerr.conf <<'EOF_CONFIG'
-PORT=5055
-HOST=0.0.0.0
-EOF_CONFIG
-  cat > /etc/systemd/system/seerr.service <<'EOF_SERVICE'
-[Unit]
-Description=Seerr Service
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-EnvironmentFile=/etc/seerr/seerr.conf
-Environment=NODE_ENV=production
-Type=exec
-Restart=on-failure
-WorkingDirectory=/opt/seerr
-ExecStart=/usr/bin/node dist/index.js
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-}
-
-write_bazarr_service() {
-  cat > /etc/systemd/system/bazarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Bazarr Daemon
-After=syslog.target network.target
-
-[Service]
-WorkingDirectory=/opt/bazarr/
-UMask=0002
-Restart=on-failure
-RestartSec=5
-Type=simple
-ExecStart=/opt/bazarr/venv/bin/python3 /opt/bazarr/bazarr.py
-KillSignal=SIGINT
-TimeoutStopSec=20
-SyslogIdentifier=bazarr
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-}
-
-configure_bazarr() {
-  install -d -m 0775 /var/lib/bazarr
-  chmod 0775 /opt/bazarr
-  sed -i.bak 's/--only-binary=Pillow//g' /opt/bazarr/requirements.txt
-  $STD uv venv --clear /opt/bazarr/venv --python 3.12 || return
-  $STD uv pip install -r /opt/bazarr/requirements.txt --python /opt/bazarr/venv/bin/python3 || return
-}
-
-build_seerr() {
-  local pnpm_desired
-  pnpm_desired="$(grep -Po '"pnpm":\s*"\K[^"]+' /opt/seerr/package.json)" || return
-  [[ -n "$pnpm_desired" ]] || return 1
-  NODE_VERSION="22" NODE_MODULE="pnpm@${pnpm_desired}" setup_nodejs || return
-  export CYPRESS_INSTALL_BINARY=0
-  export NODE_OPTIONS="--max-old-space-size=3072"
-  cd /opt/seerr
-  $STD pnpm install --frozen-lockfile || return
-  $STD pnpm build || return
-}
-
-install_byparr_dependencies() {
-  msg_info "Installing Byparr Dependencies"
-  $STD apt install -y --no-install-recommends \
-    ffmpeg \
-    libatk1.0-0 \
-    libcairo-gobject2 \
-    libcairo2 \
-    libdbus-glib-1-2 \
-    libfontconfig1 \
-    libfreetype6 \
-    libgdk-pixbuf-xlib-2.0-0 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libpangoft2-1.0-0 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb-shm0 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxi6 \
-    libxrender1 \
-    libxt6 \
-    libxtst6 \
-    xvfb \
-    fonts-noto-color-emoji \
-    fonts-unifont \
-    xfonts-cyrillic \
-    xfonts-scalable \
-    fonts-liberation \
-    fonts-ipafont-gothic \
-    fonts-wqy-zenhei \
-    fonts-tlwg-loma-otf || return
-  $STD apt autoremove -y chromium
-  msg_ok "Installed Byparr Dependencies"
 }
 
 install_sonarr() {
@@ -788,6 +582,26 @@ update_sonarr() {
     msg_ok "Started Sonarr"
     msg_ok "Updated Sonarr"
   fi
+}
+
+# Generated from apps/radarr.sh. Do not edit this block directly.
+write_radarr_service() {
+  cat > /etc/systemd/system/radarr.service <<'EOF_SERVICE'
+[Unit]
+Description=Radarr Daemon
+After=syslog.target network.target
+
+[Service]
+UMask=0002
+Type=simple
+ExecStart=/opt/Radarr/Radarr -nobrowser -data=/var/lib/radarr/
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
 }
 
 install_radarr() {
@@ -835,6 +649,26 @@ update_radarr() {
   fi
 }
 
+# Generated from apps/lidarr.sh. Do not edit this block directly.
+write_lidarr_service() {
+  cat > /etc/systemd/system/lidarr.service <<'EOF_SERVICE'
+[Unit]
+Description=Lidarr Daemon
+After=syslog.target network.target
+
+[Service]
+UMask=0002
+Type=simple
+ExecStart=/opt/Lidarr/Lidarr -nobrowser -data=/var/lib/lidarr/
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
 install_lidarr() {
   msg_info "Installing Lidarr Dependencies"
   $STD apt install -y sqlite3 libchromaprint-tools libicu-dev mediainfo || return
@@ -877,6 +711,26 @@ update_lidarr() {
     msg_ok "Started Lidarr"
     msg_ok "Updated Lidarr"
   fi
+}
+
+# Generated from apps/prowlarr.sh. Do not edit this block directly.
+write_prowlarr_service() {
+  cat > /etc/systemd/system/prowlarr.service <<'EOF_SERVICE'
+[Unit]
+Description=Prowlarr Daemon
+After=syslog.target network.target
+
+[Service]
+UMask=0002
+Type=simple
+ExecStart=/opt/Prowlarr/Prowlarr -nobrowser -data=/var/lib/prowlarr/
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
 }
 
 install_prowlarr() {
@@ -927,6 +781,67 @@ update_prowlarr() {
     msg_ok "Started Prowlarr"
     msg_ok "Updated Prowlarr"
   fi
+}
+
+# Generated from apps/byparr.sh. Do not edit this block directly.
+write_byparr_service() {
+  cat > /etc/systemd/system/byparr.service <<'EOF_SERVICE'
+[Unit]
+Description=Byparr
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/Byparr
+ExecStart=/usr/local/bin/uv run python3 main.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+install_byparr_dependencies() {
+  msg_info "Installing Byparr Dependencies"
+  $STD apt install -y --no-install-recommends \
+    ffmpeg \
+    libatk1.0-0 \
+    libcairo-gobject2 \
+    libcairo2 \
+    libdbus-glib-1-2 \
+    libfontconfig1 \
+    libfreetype6 \
+    libgdk-pixbuf-xlib-2.0-0 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libpangoft2-1.0-0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb-shm0 \
+    libxcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrender1 \
+    libxt6 \
+    libxtst6 \
+    xvfb \
+    fonts-noto-color-emoji \
+    fonts-unifont \
+    xfonts-cyrillic \
+    xfonts-scalable \
+    fonts-liberation \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-tlwg-loma-otf || return
+  $STD apt autoremove -y chromium
+  msg_ok "Installed Byparr Dependencies"
 }
 
 install_byparr() {
@@ -980,6 +895,30 @@ update_byparr() {
     msg_ok "Started Byparr"
     msg_ok "Updated Byparr"
   fi
+}
+
+# Generated from apps/flaresolverr.sh. Do not edit this block directly.
+write_flaresolverr_service() {
+  cat > /etc/systemd/system/flaresolverr.service <<'EOF_SERVICE'
+[Unit]
+Description=FlareSolverr
+After=network.target
+
+[Service]
+SyslogIdentifier=flaresolverr
+Restart=always
+RestartSec=5
+Type=simple
+Environment="LOG_LEVEL=info"
+Environment="CAPTCHA_SOLVER=none"
+Environment="PORT=8192"
+WorkingDirectory=/opt/flaresolverr
+ExecStart=/opt/flaresolverr/flaresolverr
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
 }
 
 install_flaresolverr() {
@@ -1040,6 +979,44 @@ update_flaresolverr() {
   fi
 }
 
+# Generated from apps/seerr.sh. Do not edit this block directly.
+write_seerr_service() {
+  install -d -m 0755 /etc/seerr
+  cat > /etc/seerr/seerr.conf <<'EOF_CONFIG'
+PORT=5055
+HOST=0.0.0.0
+EOF_CONFIG
+  cat > /etc/systemd/system/seerr.service <<'EOF_SERVICE'
+[Unit]
+Description=Seerr Service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/seerr/seerr.conf
+Environment=NODE_ENV=production
+Type=exec
+Restart=on-failure
+WorkingDirectory=/opt/seerr
+ExecStart=/usr/bin/node dist/index.js
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+build_seerr() {
+  local pnpm_desired
+  pnpm_desired="$(grep -Po '"pnpm":\s*"\K[^"]+' /opt/seerr/package.json)" || return
+  [[ -n "$pnpm_desired" ]] || return 1
+  NODE_VERSION="22" NODE_MODULE="pnpm@${pnpm_desired}" setup_nodejs || return
+  export CYPRESS_INSTALL_BINARY=0
+  export NODE_OPTIONS="--max-old-space-size=3072"
+  cd /opt/seerr
+  $STD pnpm install --frozen-lockfile || return
+  $STD pnpm build || return
+}
+
 install_seerr() {
   msg_info "Installing Seerr Dependencies"
   $STD apt install -y build-essential python3-setuptools || return
@@ -1083,6 +1060,37 @@ update_seerr() {
     msg_ok "Started Seerr"
     msg_ok "Updated Seerr"
   fi
+}
+
+# Generated from apps/bazarr.sh. Do not edit this block directly.
+write_bazarr_service() {
+  cat > /etc/systemd/system/bazarr.service <<'EOF_SERVICE'
+[Unit]
+Description=Bazarr Daemon
+After=syslog.target network.target
+
+[Service]
+WorkingDirectory=/opt/bazarr/
+UMask=0002
+Restart=on-failure
+RestartSec=5
+Type=simple
+ExecStart=/opt/bazarr/venv/bin/python3 /opt/bazarr/bazarr.py
+KillSignal=SIGINT
+TimeoutStopSec=20
+SyslogIdentifier=bazarr
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+configure_bazarr() {
+  install -d -m 0775 /var/lib/bazarr
+  chmod 0775 /opt/bazarr
+  sed -i.bak 's/--only-binary=Pillow//g' /opt/bazarr/requirements.txt
+  $STD uv venv --clear /opt/bazarr/venv --python 3.12 || return
+  $STD uv pip install -r /opt/bazarr/requirements.txt --python /opt/bazarr/venv/bin/python3 || return
 }
 
 install_bazarr() {

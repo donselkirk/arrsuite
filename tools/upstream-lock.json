@@ -1,0 +1,38 @@
+{
+  "development_repository": "community-scripts/ProxmoxVED",
+  "production_repository": "community-scripts/ProxmoxVE",
+  "applications": {
+    "sonarr": {
+      "install": { "repository": "community-scripts/ProxmoxVED", "path": "install/sonarr-install.sh", "blob": "4027fb2a44ad9e35096c4e2f0737e01c76db6784" },
+      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/sonarr.sh", "blob": "24270642d7220a76df3827dad739fa3c3f12d96e" }
+    },
+    "radarr": {
+      "install": { "repository": "community-scripts/ProxmoxVED", "path": "install/radarr-install.sh", "blob": "3ac0072c332163e63a1916818b6832dbacd9f30e" },
+      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/radarr.sh", "blob": "014dbfd16d95033c476411cdd1b197b0dbcde8ab" }
+    },
+    "lidarr": {
+      "install": { "repository": "community-scripts/ProxmoxVE", "path": "install/lidarr-install.sh", "blob": "83bc66ac1ed94d6afb9dbf7ead3639b4b6f438c0" },
+      "update": { "repository": "community-scripts/ProxmoxVE", "path": "ct/lidarr.sh", "blob": "141197a57915117fc4dab51e2349bed65e6d5b35" }
+    },
+    "prowlarr": {
+      "install": { "repository": "community-scripts/ProxmoxVED", "path": "install/prowlarr-install.sh", "blob": "3c8354044ea356b965f777886dadee95e97a495e" },
+      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/prowlarr.sh", "blob": "0f0cc7bd923e81f4b83203f13b87ebfc72227f2a" }
+    },
+    "byparr": {
+      "install": { "repository": "community-scripts/ProxmoxVE", "path": "install/byparr-install.sh", "blob": "daa4f44ef54c123e25928f1d6e3c65fb491d1fc2" },
+      "update": { "repository": "community-scripts/ProxmoxVE", "path": "ct/byparr.sh", "blob": "81b063bc0c8647f95fd354547b3a2ea7d617d04c" }
+    },
+    "flaresolverr": {
+      "install": { "repository": "community-scripts/ProxmoxVE", "path": "install/flaresolverr-install.sh", "blob": "55642752643eddd1a29e3eb6ab60f50963394039" },
+      "update": { "repository": "community-scripts/ProxmoxVE", "path": "ct/flaresolverr.sh", "blob": "5b5927af0a9e844549ea4ef69e57a4990e7bfea2" }
+    },
+    "seerr": {
+      "install": { "repository": "community-scripts/ProxmoxVED", "path": "install/seerr-install.sh", "blob": "c33a6f27139c3e54f28635d0ddaeb4cffa174a4e" },
+      "update": { "repository": "community-scripts/ProxmoxVE", "path": "ct/seerr.sh", "blob": "9b43ec2cbe80850a05eea93a3f6205aafa6780b7" }
+    },
+    "bazarr": {
+      "install": { "repository": "community-scripts/ProxmoxVE", "path": "install/bazarr-install.sh", "blob": "1ff43032eea6ba840f3c504f34527cb140e21d31" },
+      "update": { "repository": "community-scripts/ProxmoxVE", "path": "ct/bazarr.sh", "blob": "dddd27d9e8899d3117e17375348a40abd169e764" }
+    }
+  }
+}

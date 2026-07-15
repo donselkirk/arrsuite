@@ -7,6 +7,11 @@ bootstrap_script="${project_root}/arrsuite.sh"
 install_script="${project_root}/install/arrsuite-install.sh"
 json_file="${project_root}/json/arrsuite.json"
 release_workflow="${project_root}/.github/workflows/release.yml"
+upstream_workflow="${project_root}/.github/workflows/upstream-check.yml"
+artifact_builder="${project_root}/tools/build-artifacts.sh"
+upstream_checker="${project_root}/tools/check-upstream.sh"
+upstream_lock="${project_root}/tools/upstream-lock.json"
+manager_template="${project_root}/src/arrsuite-manager.sh.in"
 manager_tmp="$(mktemp)"
 motd_tmp="$(mktemp)"
 standalone_manager="${project_root}/tools/arrsuite-manager"
@@ -14,6 +19,8 @@ behavior_test="${project_root}/tests/manager-behavior.sh"
 standalone_motd="${project_root}/tools/arrsuite-motd.sh"
 seerr_backup_tool="${project_root}/tools/seerr-backup.sh"
 trap 'rm -f "$manager_tmp" "$motd_tmp"' EXIT
+
+"$artifact_builder" --check
 
 printf 'Checking Bash syntax...\n'
 bash -n "$ct_script"
@@ -35,6 +42,16 @@ bash -n "$standalone_manager"
 bash -n "$behavior_test"
 bash -n "$standalone_motd"
 bash -n "$seerr_backup_tool"
+bash -n "$artifact_builder"
+bash -n "$upstream_checker"
+bash -n "$manager_template"
+for module in "${project_root}"/apps/*.sh; do
+  bash -n "$module"
+  app="$(basename "$module" .sh)"
+  grep -q "write_${app}_service()" "$module"
+  grep -q "install_${app}()" "$module"
+  grep -q "update_${app}()" "$module"
+done
 
 awk '
   /^  cat >\/etc\/profile\.d\/00_lxc-details\.sh <<'"'"'EOF_MOTD'"'"'$/ { capture=1; next }
@@ -57,6 +74,7 @@ cmp -s "$manager_tmp" "$standalone_manager" || {
 
 printf 'Checking JSON metadata...\n'
 python3 -m json.tool "$json_file" >/dev/null
+python3 -m json.tool "$upstream_lock" >/dev/null
 
 printf 'Checking required project files...\n'
 for required in "$bootstrap_script" "$ct_script" "$install_script" "$json_file" "$standalone_manager" "$seerr_backup_tool"; do
@@ -179,12 +197,15 @@ grep -q '      - "arrsuite.sh"' "$release_workflow"
 grep -q '      - "ct/\*\*/\*.sh"' "$release_workflow"
 grep -q '      - "install/\*\*/\*.sh"' "$release_workflow"
 grep -q '      - "tools/arrsuite-manager"' "$release_workflow"
-grep -q '      - "tools/\*\*/\*.sh"' "$release_workflow"
+grep -q '      - "apps/\*\*/\*.sh"' "$release_workflow"
+grep -q '      - "src/\*\*/\*.in"' "$release_workflow"
 if grep -Eq 'README|AGENTS' "$release_workflow"; then
   echo "Documentation files must not trigger validation and releases." >&2
   exit 1
 fi
 grep -q 'bash tests/static-checks.sh' "$release_workflow"
+grep -q 'bash tools/build-artifacts.sh' "$release_workflow"
+grep -q 'git diff --exit-code' "$release_workflow"
 grep -q 'gh release create' "$release_workflow"
 grep -q 'dist/arrsuite-install.sh' "$release_workflow"
 grep -q 'dist/seerr-backup.sh' "$release_workflow"
@@ -194,6 +215,13 @@ grep -q 'docker cp' "$seerr_backup_tool"
 grep -q 'docker start' "$seerr_backup_tool"
 grep -q 'os.path.islink' "$seerr_backup_tool"
 grep -q 'dist/VERSION' "$release_workflow"
+grep -q '^name: Check Community Scripts Upstream$' "$upstream_workflow"
+grep -q 'schedule:' "$upstream_workflow"
+grep -q 'bash tools/check-upstream.sh' "$upstream_workflow"
+grep -q 'actions/upload-artifact@v4' "$upstream_workflow"
+grep -q 'ARRSUITE_APP_MODULES' "$manager_template"
+grep -q 'community-scripts/ProxmoxVED' "$upstream_lock"
+grep -q 'community-scripts/ProxmoxVE' "$upstream_lock"
 if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then
   echo "README must not hard-code an ArrSuite version number." >&2
   exit 1
@@ -205,7 +233,7 @@ bash "$behavior_test"
 if command -v shellcheck >/dev/null 2>&1; then
   printf 'Running ShellCheck...\n'
   # SC1090/SC1091: function libraries are generated or downloaded at runtime.
-  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool"
+  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool" "$artifact_builder" "$upstream_checker"
 else
   printf 'ShellCheck not installed; skipping it.\n'
 fi

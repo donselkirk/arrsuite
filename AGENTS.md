@@ -46,12 +46,23 @@ optional and unchecked. LXC nesting must default to disabled.
 
 ## Files that must remain synchronized
 
-- `tools/arrsuite-manager` is the standalone copy of the manager embedded in
-  `install/arrsuite-install.sh`.
+- `apps/*.sh` contains the editable application service, install, dependency,
+  update, release, data-path, and architecture modules.
+- `src/arrsuite-manager.sh.in` contains the shared manager implementation.
+- `tools/build-artifacts.sh` generates `tools/arrsuite-manager` and embeds it in
+  `install/arrsuite-install.sh`. Do not edit generated application blocks
+  directly; run the builder after changing a module or the template.
 - `tools/arrsuite-motd.sh` is the standalone copy of the login banner embedded
   in `install/arrsuite-install.sh`.
 - `tests/static-checks.sh` verifies both pairs byte-for-byte. Update both copies
   whenever either embedded artifact changes.
+
+`tools/upstream-lock.json` records the exact Community Scripts install and CT
+source blobs reviewed for every application. Run `bash tools/check-upstream.sh`
+to detect changes and generate focused diffs under `upstream-report/`. Review
+the diffs and update the relevant `apps/<app>.sh`; never execute new upstream
+content automatically. Update the lock only after the imported behavior has
+been reviewed and tested.
 
 When adding an application, update all relevant surfaces:
 
@@ -93,6 +104,7 @@ Do not run a Community Scripts `msg_info` spinner behind a `whiptail` dialog.
 Run after every change:
 
 ```bash
+bash tools/build-artifacts.sh
 bash tests/static-checks.sh
 ```
 
