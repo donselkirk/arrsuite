@@ -55,6 +55,9 @@ update
 # Equivalent direct manager command
 arrsuite update
 
+# Update only the ArrSuite manager, banner, repair tool, and helper snapshots
+arrsuite self-update
+
 # Update only selected installed apps
 arrsuite update sonarr radarr
 arrsuite update lidarr

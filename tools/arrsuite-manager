@@ -11,6 +11,11 @@ readonly REGISTRY="${ARRSUITE_REGISTRY:-${BASE_DIR}/installed.apps}"
 readonly FUNCTIONS_LIBRARY="${ARRSUITE_FUNCTIONS_LIBRARY:-${BASE_DIR}/lib/community-functions.sh}"
 readonly TOOLS_LIBRARY="${ARRSUITE_TOOLS_LIBRARY:-${BASE_DIR}/lib/community-tools.sh}"
 readonly LOCK_FILE="${ARRSUITE_LOCK_FILE:-/run/lock/arrsuite.lock}"
+readonly REPOSITORY_FILE="${BASE_DIR}/repository.url"
+readonly DEFAULT_REPOSITORY_RAW_URL="https://raw.githubusercontent.com/donselkirk/arrsuite/main"
+readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
+readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
+readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
 readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr)
 
 declare -A APP_LABEL=(
@@ -620,6 +625,54 @@ update_apps() {
   msg_ok "All installed ArrSuite applications are current"
 }
 
+self_update() {
+  local repository_url community_url temp_dir changed=0
+  repository_url="${ARRSUITE_REPOSITORY_RAW_URL:-}"
+  if [[ -z "$repository_url" && -r "$REPOSITORY_FILE" ]]; then
+    repository_url="$(<"$REPOSITORY_FILE")"
+  fi
+  repository_url="${repository_url:-$DEFAULT_REPOSITORY_RAW_URL}"
+  repository_url="${repository_url%/}"
+  community_url="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main}"
+  community_url="${community_url%/}"
+
+  temp_dir="$(mktemp -d)"
+  if ! curl -fsSL "${repository_url}/tools/arrsuite-manager" -o "${temp_dir}/arrsuite" \
+    || ! curl -fsSL "${repository_url}/tools/arrsuite-motd.sh" -o "${temp_dir}/arrsuite-motd.sh" \
+    || ! curl -fsSL "${repository_url}/tools/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh" \
+    || ! curl -fsSL "${community_url}/misc/install.func" -o "${temp_dir}/community-functions.sh" \
+    || ! curl -fsSL "${community_url}/misc/tools.func" -o "${temp_dir}/community-tools.sh"; then
+    rm -rf "$temp_dir"
+    msg_error "Failed to download ArrSuite update files"
+    return 1
+  fi
+
+  if ! bash -n "${temp_dir}/arrsuite" \
+    || ! bash -n "${temp_dir}/arrsuite-motd.sh" \
+    || ! bash -n "${temp_dir}/fix-console-autologin.sh" \
+    || ! grep -q '^fetch_and_deploy_gh_release()' "${temp_dir}/community-tools.sh"; then
+    rm -rf "$temp_dir"
+    msg_error "Downloaded ArrSuite update files failed validation"
+    return 1
+  fi
+
+  msg_info "Updating ArrSuite Runtime"
+  cmp -s "${temp_dir}/arrsuite" "$MANAGER_PATH" || changed=1
+  install -m 0755 "${temp_dir}/arrsuite" "$MANAGER_PATH"
+  install -m 0755 "${temp_dir}/arrsuite-motd.sh" "$MOTD_PATH"
+  install -m 0755 "${temp_dir}/fix-console-autologin.sh" "$REPAIR_PATH"
+  install -m 0644 "${temp_dir}/community-functions.sh" "$FUNCTIONS_LIBRARY"
+  install -m 0644 "${temp_dir}/community-tools.sh" "$TOOLS_LIBRARY"
+  printf '%s\n' "$repository_url" >"$REPOSITORY_FILE"
+  rm -rf "$temp_dir"
+
+  if ((changed)); then
+    msg_ok "Updated ArrSuite Runtime"
+  else
+    msg_ok "ArrSuite Runtime is Current"
+  fi
+}
+
 show_list() {
   local app installed service_state
   printf '%-10s %-11s %-10s %-12s\n' "APP" "INSTALLED" "PORT" "SERVICE"
@@ -661,6 +714,7 @@ ArrSuite multi-application manager
 Usage:
   arrsuite add [app ...]       Install apps; opens a checklist when no app is named
   arrsuite update [app ...]    Update all installed apps, or only named apps
+  arrsuite self-update         Update ArrSuite and Community Scripts helpers
   arrsuite list                Show supported apps, ports, and service state
   arrsuite status              Show systemd status for installed apps
   arrsuite help                Show this help
@@ -686,7 +740,14 @@ main() {
     update|upgrade)
       acquire_lock
       shift
+      if [[ "${ARRSUITE_SKIP_SELF_UPDATE:-0}" != "1" ]] && ! self_update; then
+        msg_warn "ArrSuite self-update failed; continuing with application updates"
+      fi
       update_apps "$@"
+      ;;
+    self-update)
+      acquire_lock
+      self_update
       ;;
     list)
       show_list

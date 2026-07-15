@@ -21,8 +21,10 @@ optional and unchecked. LXC nesting must default to disabled.
 
 - Allow initial application selection through the installer checklist.
 - Support `arrsuite add [app ...]`, `arrsuite list`, `arrsuite status`, and
-  `arrsuite update [app ...]`.
-- `/usr/bin/update` must update every installed application.
+  `arrsuite update [app ...]`, plus `arrsuite self-update`.
+- `/usr/bin/update` must attempt an ArrSuite self-update and then update every
+  installed application. A self-update network failure must not prevent
+  application updates.
 - Track installed applications in `/opt/arrsuite/installed.apps`.
 - A failed install must never be added to the registry.
 - Continue processing remaining applications if one update fails, then return

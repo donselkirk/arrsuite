@@ -93,6 +93,9 @@ grep -q 'prowlarr.service' "$install_script"
 grep -q '9696' "$install_script"
 grep -q '\[\[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" \]\] && default_state="OFF"' "$install_script"
 grep -q 'check_for_gh_release' "$install_script"
+grep -q 'self_update()' "$install_script"
+grep -q 'arrsuite self-update' "$install_script"
+grep -q 'self-update failed; continuing with application updates' "$install_script"
 if grep -q 'return 130' "$install_script"; then
   echo "Checklist cancellation must not trigger the global error handler." >&2
   exit 1
