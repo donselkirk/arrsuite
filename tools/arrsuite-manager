@@ -1490,7 +1490,14 @@ remove_or_reset_apps() {
     esac
     shift
   done
-  ((${#apps[@]} > 0)) || { msg_error "Usage: arrsuite ${action} app [app ...] [--yes]"; return 2; }
+  if ((${#apps[@]} == 0)); then
+    if [[ "$action" == "remove" ]]; then
+      msg_error "Usage: arrsuite remove app [app ...] [--purge] [--yes]"
+    else
+      msg_error "Usage: arrsuite reset app [app ...] [--yes]"
+    fi
+    return 2
+  fi
 
   for app in "${apps[@]}"; do
     require_installed_app "$app" || return
