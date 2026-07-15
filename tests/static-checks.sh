@@ -12,6 +12,7 @@ motd_tmp="$(mktemp)"
 standalone_manager="${project_root}/tools/arrsuite-manager"
 behavior_test="${project_root}/tests/manager-behavior.sh"
 standalone_motd="${project_root}/tools/arrsuite-motd.sh"
+seerr_backup_tool="${project_root}/tools/seerr-backup.sh"
 trap 'rm -f "$manager_tmp" "$motd_tmp"' EXIT
 
 printf 'Checking Bash syntax...\n'
@@ -33,6 +34,7 @@ bash -n "$manager_tmp"
 bash -n "$standalone_manager"
 bash -n "$behavior_test"
 bash -n "$standalone_motd"
+bash -n "$seerr_backup_tool"
 
 awk '
   /^  cat >\/etc\/profile\.d\/00_lxc-details\.sh <<'"'"'EOF_MOTD'"'"'$/ { capture=1; next }
@@ -57,7 +59,7 @@ printf 'Checking JSON metadata...\n'
 python3 -m json.tool "$json_file" >/dev/null
 
 printf 'Checking required project files...\n'
-for required in "$bootstrap_script" "$ct_script" "$install_script" "$json_file" "$standalone_manager"; do
+for required in "$bootstrap_script" "$ct_script" "$install_script" "$json_file" "$standalone_manager" "$seerr_backup_tool"; do
   [[ -s "$required" ]] || {
     echo "Missing required file: $required" >&2
     exit 1
@@ -130,6 +132,8 @@ grep -q 'restore_native_backup()' "$install_script"
 grep -q 'validate_backup_zip()' "$install_script"
 grep -q '/system/backup/restore/upload' "$install_script"
 grep -q 'Creating Pre-Restore Safety Backup' "$install_script"
+grep -q 'create_seerr_backup()' "$install_script"
+grep -q 'restore_seerr_backup()' "$install_script"
 grep -q 'self-update failed; continuing with application updates' "$install_script"
 if grep -q 'return 130' "$install_script"; then
   echo "Checklist cancellation must not trigger the global error handler." >&2
@@ -182,6 +186,7 @@ fi
 grep -q 'bash tests/static-checks.sh' "$release_workflow"
 grep -q 'gh release create' "$release_workflow"
 grep -q 'dist/arrsuite-install.sh' "$release_workflow"
+grep -q 'dist/seerr-backup.sh' "$release_workflow"
 grep -q 'dist/VERSION' "$release_workflow"
 if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then
   echo "README must not hard-code an ArrSuite version number." >&2
@@ -194,7 +199,7 @@ bash "$behavior_test"
 if command -v shellcheck >/dev/null 2>&1; then
   printf 'Running ShellCheck...\n'
   # SC1090/SC1091: function libraries are generated or downloaded at runtime.
-  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh"
+  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool"
 else
   printf 'ShellCheck not installed; skipping it.\n'
 fi

@@ -63,6 +63,7 @@ jobs:
           cp tools/arrsuite-manager dist/arrsuite-manager
           cp tools/arrsuite-motd.sh dist/arrsuite-motd.sh
           cp tools/fix-console-autologin.sh dist/fix-console-autologin.sh
+          cp tools/seerr-backup.sh dist/seerr-backup.sh
           chmod 0755 dist/*.sh dist/arrsuite-manager
           (cd dist && sha256sum VERSION *.sh arrsuite-manager >SHA256SUMS)
 
@@ -80,6 +81,7 @@ jobs:
             dist/arrsuite-manager \
             dist/arrsuite-motd.sh \
             dist/fix-console-autologin.sh \
+            dist/seerr-backup.sh \
             --target "$GITHUB_SHA" \
             --title "ArrSuite $RELEASE_VERSION" \
             --generate-notes

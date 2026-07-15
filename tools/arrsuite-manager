@@ -18,6 +18,7 @@ readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
 readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
 readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
 readonly APP_DATA_ROOT="${ARRSUITE_APP_DATA_ROOT:-/var/lib}"
+readonly SEERR_CONFIG_PATH="${ARRSUITE_SEERR_CONFIG_DIR:-/opt/seerr/config}"
 readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr)
 
 declare -A APP_LABEL=(
@@ -58,7 +59,7 @@ declare -A APP_DATA_DIR=(
   [radarr]="${APP_DATA_ROOT}/radarr"
 )
 
-readonly -a BACKUP_APPS=(sonarr radarr)
+readonly -a BACKUP_APPS=(sonarr radarr seerr)
 
 [[ $EUID -eq 0 || "${ARRSUITE_ALLOW_NON_ROOT:-0}" == "1" ]] || {
   echo "Run arrsuite as root." >&2
@@ -118,7 +119,7 @@ register_app() {
   fi
 }
 
-supports_native_backup() {
+supports_backup() {
   local requested app
   requested="$(normalize_app "$1")"
   for app in "${BACKUP_APPS[@]}"; do
@@ -246,6 +247,108 @@ if items:
   msg_ok "Created ${APP_LABEL[$app]} backup: ${destination}/${backup_name}"
 }
 
+create_seerr_backup() {
+  local destination="$1" config_dir="$SEERR_CONFIG_PATH" timestamp archive temp_archive was_active=0
+  is_installed seerr || {
+    msg_error "Seerr is not installed"
+    return 1
+  }
+  [[ -f "$config_dir/db/db.sqlite3" ]] || {
+    msg_error "Seerr SQLite database not found: ${config_dir}/db/db.sqlite3"
+    return 1
+  }
+
+  install -d -m 0750 "$destination"
+  timestamp="$(date +%Y.%m.%d_%H.%M.%S)"
+  archive="${destination%/}/arrsuite_seerr_backup_${timestamp}.zip"
+  temp_archive="$(mktemp "${destination%/}/.seerr-backup.XXXXXX")"
+  systemctl is-active --quiet seerr && was_active=1
+
+  msg_info "Creating Seerr Config Backup"
+  if ((was_active)); then
+    systemctl stop seerr || {
+      rm -f "$temp_archive"
+      return 1
+    }
+  fi
+
+  if ! python3 - "$config_dir" "$temp_archive" <<'PYTHON'
+import datetime
+import json
+import os
+import stat
+import sys
+import zipfile
+
+source, destination = sys.argv[1:]
+manifest = {
+    "application": "seerr",
+    "format": "arrsuite-seerr-backup",
+    "schema": 1,
+    "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}
+with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr("arrsuite-backup.json", json.dumps(manifest, indent=2) + "\n")
+    for root, directories, files in os.walk(source):
+        for name in list(directories) + files:
+            path = os.path.join(root, name)
+            if stat.S_ISLNK(os.lstat(path).st_mode):
+                raise RuntimeError(f"Refusing to archive symbolic link: {path}")
+        for name in files:
+            path = os.path.join(root, name)
+            archive.write(path, os.path.join("config", os.path.relpath(path, source)))
+PYTHON
+  then
+    rm -f "$temp_archive"
+    ((was_active)) && systemctl start seerr || true
+    msg_error "Failed to create Seerr backup"
+    return 1
+  fi
+
+  if ((was_active)) && ! systemctl start seerr; then
+    rm -f "$temp_archive"
+    msg_error "Backup created, but Seerr failed to restart"
+    return 1
+  fi
+  mv "$temp_archive" "$archive"
+  msg_ok "Created Seerr backup: ${archive}"
+}
+
+validate_seerr_backup_zip() {
+  python3 - "$1" "${2:-}" <<'PYTHON'
+import json
+import pathlib
+import stat
+import sys
+import zipfile
+
+archive_path, extract_path = sys.argv[1:]
+try:
+    with zipfile.ZipFile(archive_path) as archive:
+        if archive.testzip() is not None:
+            raise ValueError("CRC validation failed")
+        manifest = json.loads(archive.read("arrsuite-backup.json"))
+        if manifest.get("format") != "arrsuite-seerr-backup" or manifest.get("schema") != 1:
+            raise ValueError("unsupported backup format")
+        names = {item.filename for item in archive.infolist()}
+        if "config/db/db.sqlite3" not in names:
+            raise ValueError("SQLite database is missing")
+        for item in archive.infolist():
+            path = pathlib.PurePosixPath(item.filename)
+            if path.is_absolute() or ".." in path.parts or "\\" in item.filename:
+                raise ValueError("unsafe archive path")
+            mode = item.external_attr >> 16
+            if stat.S_ISLNK(mode):
+                raise ValueError("symbolic links are not allowed")
+            if item.filename != "arrsuite-backup.json" and path.parts[0] != "config":
+                raise ValueError("unexpected archive content")
+        if extract_path:
+            archive.extractall(extract_path)
+except (KeyError, OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError):
+    sys.exit(1)
+PYTHON
+}
+
 backup_apps() {
   local destination="${BASE_DIR}/backups" app failures=0
   local -a apps=()
@@ -274,12 +377,16 @@ backup_apps() {
   }
 
   for app in "${apps[@]}"; do
-    if ! supports_native_backup "$app"; then
-      msg_error "Native backup is not supported for: ${app}"
+    if ! supports_backup "$app"; then
+      msg_error "Backup is not supported for: ${app}"
       failures=$((failures + 1))
       continue
     fi
-    create_native_backup "$app" "${destination%/}/${app}" || failures=$((failures + 1))
+    if [[ "$app" == "seerr" ]]; then
+      create_seerr_backup "${destination%/}/${app}" || failures=$((failures + 1))
+    else
+      create_native_backup "$app" "${destination%/}/${app}" || failures=$((failures + 1))
+    fi
   done
   ((failures == 0))
 }
@@ -288,7 +395,7 @@ restore_native_backup() {
   local app backup_file safety_dir response
   app="$(normalize_app "${1:-}")"
   backup_file="${2:-}"
-  supports_native_backup "$app" || {
+  supports_backup "$app" || {
     msg_error "Native restore is supported only for Sonarr and Radarr"
     return 2
   }
@@ -331,6 +438,69 @@ restore_native_backup() {
   systemctl restart "$app" || return
   systemctl is-active --quiet "$app" || return
   msg_ok "Restored ${APP_LABEL[$app]} from ${backup_file}"
+}
+
+restore_seerr_backup() {
+  local backup_file="$1" config_dir="$SEERR_CONFIG_PATH" stage_dir rollback_dir
+  [[ -f "$backup_file" && -r "$backup_file" && "${backup_file,,}" == *.zip ]] || {
+    msg_error "Provide a readable Seerr backup ZIP"
+    return 2
+  }
+  validate_seerr_backup_zip "$backup_file" || {
+    msg_error "The selected file is not a valid ArrSuite Seerr backup ZIP"
+    return 2
+  }
+
+  msg_info "Creating Pre-Restore Safety Backup for Seerr"
+  create_seerr_backup "${BASE_DIR}/backups/pre-restore/seerr" || {
+    msg_error "Restore cancelled because the safety backup failed"
+    return 1
+  }
+
+  stage_dir="$(mktemp -d)"
+  if ! validate_seerr_backup_zip "$backup_file" "$stage_dir"; then
+    rm -rf "$stage_dir"
+    return 1
+  fi
+  rollback_dir="${config_dir}.arrsuite-rollback"
+  rm -rf "$rollback_dir"
+
+  msg_info "Restoring Seerr from ${backup_file}"
+  systemctl stop seerr || {
+    rm -rf "$stage_dir"
+    return 1
+  }
+  mv "$config_dir" "$rollback_dir" || {
+    systemctl start seerr || true
+    rm -rf "$stage_dir"
+    return 1
+  }
+  if ! mv "$stage_dir/config" "$config_dir" || ! systemctl start seerr || ! systemctl is-active --quiet seerr; then
+    systemctl stop seerr || true
+    rm -rf "$config_dir"
+    mv "$rollback_dir" "$config_dir"
+    systemctl start seerr || true
+    rm -rf "$stage_dir"
+    msg_error "Seerr restore failed; the previous config was restored"
+    return 1
+  fi
+
+  rm -rf "$rollback_dir" "$stage_dir"
+  msg_ok "Restored Seerr from ${backup_file}"
+}
+
+restore_backup() {
+  local app
+  app="$(normalize_app "${1:-}")"
+  if [[ "$app" == "seerr" ]]; then
+    is_installed seerr || {
+      msg_error "Seerr is not installed"
+      return 1
+    }
+    restore_seerr_backup "$2"
+  else
+    restore_native_backup "$app" "$2"
+  fi
 }
 
 acquire_lock() {
@@ -1252,9 +1422,9 @@ Usage:
   arrsuite self-update         Update ArrSuite and Community Scripts helpers
   arrsuite version             Show the installed ArrSuite release version
   arrsuite backup [app ...] [--output directory]
-                               Create native backups for Sonarr and/or Radarr
+                               Back up Sonarr, Radarr, and/or Seerr
   arrsuite restore app backup.zip
-                               Restore a native Sonarr or Radarr backup
+                               Restore a Sonarr, Radarr, or Seerr backup
   arrsuite list                Show supported apps, ports, and service state
   arrsuite status              Show systemd status for installed apps
   arrsuite help                Show this help
@@ -1309,10 +1479,10 @@ main() {
       acquire_lock
       shift
       (($# == 2)) || {
-        msg_error "Usage: arrsuite restore sonarr|radarr backup.zip"
+        msg_error "Usage: arrsuite restore sonarr|radarr|seerr backup.zip"
         exit 2
       }
-      restore_native_backup "$1" "$2"
+      restore_backup "$1" "$2"
       ;;
     list)
       show_list

@@ -7,7 +7,9 @@ test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
 
 mkdir -p "$test_root/bin" "$test_root/lib" "$test_root/run" "$test_root/runtime" \
-  "$test_root/app-data/sonarr" "$test_root/app-data/radarr"
+  "$test_root/app-data/sonarr" "$test_root/app-data/radarr" "$test_root/seerr-config/db"
+printf 'seerr-database-fixture\n' >"$test_root/seerr-config/db/db.sqlite3"
+printf '{"initialized":true}\n' >"$test_root/seerr-config/settings.json"
 for app in sonarr radarr; do
   cat >"$test_root/app-data/$app/config.xml" <<'EOF_CONFIG'
 <Config>
@@ -105,6 +107,7 @@ run_manager() {
     ARRSUITE_MOTD_PATH="$test_root/runtime/arrsuite-motd.sh" \
     ARRSUITE_REPAIR_PATH="$test_root/runtime/fix-console-autologin.sh" \
     ARRSUITE_APP_DATA_ROOT="$test_root/app-data" \
+    ARRSUITE_SEERR_CONFIG_DIR="$test_root/seerr-config" \
     PROJECT_ROOT="$project_root" \
     TEST_ROOT="$test_root" \
     PATH="$test_root/bin:$PATH" \
@@ -154,6 +157,34 @@ run_manager restore sonarr "$test_root/backups/sonarr/sonarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/pre-restore/sonarr/sonarr_backup_test.zip"
 run_manager restore radarr "$test_root/backups/radarr/radarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/pre-restore/radarr/radarr_backup_test.zip"
+
+printf '%s\n' sonarr radarr seerr >"$test_root/installed.apps"
+run_manager backup seerr --output "$test_root/backups"
+seerr_backup="$(find "$test_root/backups/seerr" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
+[[ -n "$seerr_backup" ]]
+python3 -m zipfile -t "$seerr_backup"
+run_manager restore seerr "$seerr_backup"
+python3 -m zipfile -t "$(find "$test_root/backups/pre-restore/seerr" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
+
+mkdir -p "$test_root/external-seerr-backups"
+SEERR_CONFIG_DIR="$test_root/seerr-config" \
+  SEERR_BACKUP_ALLOW_NON_ROOT=1 \
+  TEST_ROOT="$test_root" \
+  PATH="$test_root/bin:$PATH" \
+  bash "$project_root/tools/seerr-backup.sh" "$test_root/external-seerr-backups"
+external_seerr_backup="$(find "$test_root/external-seerr-backups" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
+[[ -n "$external_seerr_backup" ]]
+run_manager restore seerr "$external_seerr_backup"
+python3 - "$test_root/invalid-seerr.zip" <<'PYTHON'
+import sys
+import zipfile
+with zipfile.ZipFile(sys.argv[1], "w") as archive:
+    archive.writestr("config/db/db.sqlite3", "invalid-without-manifest")
+PYTHON
+if run_manager restore seerr "$test_root/invalid-seerr.zip"; then
+  echo "An invalid Seerr backup unexpectedly restored successfully." >&2
+  exit 1
+fi
 
 run_manager restart sonarr
 run_manager restart
