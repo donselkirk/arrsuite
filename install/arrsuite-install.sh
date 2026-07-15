@@ -98,6 +98,7 @@ if [[ -r "$registry" ]]; then
       prowlarr) label="Prowlarr"; port="9696" ;;
       byparr) label="Byparr"; port="8191" ;;
       flaresolverr) label="FlareSolverr"; port="8192" ;;
+      seerr) label="Seerr"; port="5055" ;;
       *) continue ;;
     esac
 
@@ -155,7 +156,7 @@ readonly DEFAULT_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/release
 readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
 readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
 readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
-readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr)
+readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr)
 
 declare -A APP_LABEL=(
   [sonarr]="Sonarr"
@@ -164,6 +165,7 @@ declare -A APP_LABEL=(
   [prowlarr]="Prowlarr"
   [byparr]="Byparr"
   [flaresolverr]="FlareSolverr"
+  [seerr]="Seerr"
 )
 
 declare -A APP_DESCRIPTION=(
@@ -173,6 +175,7 @@ declare -A APP_DESCRIPTION=(
   [prowlarr]="Indexer manager (port 9696; amd64 only)"
   [byparr]="Cloudflare bypass service (port 8191; amd64 only)"
   [flaresolverr]="Cloudflare proxy service (port 8192; amd64 only)"
+  [seerr]="Media request manager (port 5055)"
 )
 
 declare -A APP_PORT=(
@@ -182,6 +185,7 @@ declare -A APP_PORT=(
   [prowlarr]="9696"
   [byparr]="8191"
   [flaresolverr]="8192"
+  [seerr]="5055"
 )
 
 [[ $EUID -eq 0 || "${ARRSUITE_ALLOW_NON_ROOT:-0}" == "1" ]] || {
@@ -364,6 +368,43 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 EOF_SERVICE
+}
+
+write_seerr_service() {
+  install -d -m 0755 /etc/seerr
+  cat > /etc/seerr/seerr.conf <<'EOF_CONFIG'
+PORT=5055
+HOST=0.0.0.0
+EOF_CONFIG
+  cat > /etc/systemd/system/seerr.service <<'EOF_SERVICE'
+[Unit]
+Description=Seerr Service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/seerr/seerr.conf
+Environment=NODE_ENV=production
+Type=exec
+Restart=on-failure
+WorkingDirectory=/opt/seerr
+ExecStart=/usr/bin/node dist/index.js
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+build_seerr() {
+  local pnpm_desired
+  pnpm_desired="$(grep -Po '"pnpm":\s*"\K[^"]+' /opt/seerr/package.json)" || return
+  [[ -n "$pnpm_desired" ]] || return 1
+  NODE_VERSION="22" NODE_MODULE="pnpm@${pnpm_desired}" setup_nodejs || return
+  export CYPRESS_INSTALL_BINARY=0
+  export NODE_OPTIONS="--max-old-space-size=3072"
+  cd /opt/seerr
+  $STD pnpm install --frozen-lockfile || return
+  $STD pnpm build || return
 }
 
 install_byparr_dependencies() {
@@ -701,6 +742,51 @@ update_flaresolverr() {
   fi
 }
 
+install_seerr() {
+  msg_info "Installing Seerr Dependencies"
+  $STD apt install -y build-essential python3-setuptools || return
+  msg_ok "Installed Seerr Dependencies"
+
+  fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest" || return
+  build_seerr || return
+  write_seerr_service
+  systemctl daemon-reload
+  systemctl enable -q --now seerr || return
+  register_app seerr
+  msg_ok "Installed Seerr"
+}
+
+update_seerr() {
+  local config_backup=""
+  if check_for_gh_release "seerr" "seerr-team/seerr"; then
+    msg_info "Stopping Seerr"
+    systemctl stop seerr || return
+    msg_ok "Stopped Seerr"
+
+    if [[ -d /opt/seerr/config ]]; then
+      config_backup="$(mktemp -d)/config"
+      mv /opt/seerr/config "$config_backup" || return
+    fi
+    rm -rf /opt/seerr
+    if ! fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest"; then
+      if [[ -n "$config_backup" ]]; then
+        install -d /opt/seerr
+        mv "$config_backup" /opt/seerr/config
+      fi
+      return 1
+    fi
+    if [[ -n "$config_backup" ]]; then
+      mv "$config_backup" /opt/seerr/config || return
+    fi
+    build_seerr || return
+
+    msg_info "Starting Seerr"
+    systemctl start seerr || return
+    msg_ok "Started Seerr"
+    msg_ok "Updated Seerr"
+  fi
+}
+
 install_app() {
   local app
   app="$(normalize_app "$1")"
@@ -712,6 +798,7 @@ install_app() {
     prowlarr) install_prowlarr ;;
     byparr) install_byparr ;;
     flaresolverr) install_flaresolverr ;;
+    seerr) install_seerr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -730,6 +817,7 @@ update_app() {
     prowlarr) update_prowlarr ;;
     byparr) update_byparr ;;
     flaresolverr) update_flaresolverr ;;
+    seerr) update_seerr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -744,7 +832,7 @@ choose_uninstalled_apps() {
   for app in "${SUPPORTED_APPS[@]}"; do
     if ! is_installed "$app"; then
       default_state="ON"
-      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" ]] && default_state="OFF"
+      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" ]] && default_state="OFF"
       options+=("$app" "${APP_DESCRIPTION[$app]}" "$default_state")
     fi
   done
@@ -966,6 +1054,7 @@ Supported apps:
   prowlarr  Indexer manager, port 9696 (amd64 only)
   byparr    Cloudflare bypass service, port 8191 (amd64 only)
   flaresolverr Cloudflare proxy service, port 8192 (amd64 only)
+  seerr        Media request manager, port 5055
 
 The Community Scripts command `update` invokes `arrsuite update`.
 EOF_HELP

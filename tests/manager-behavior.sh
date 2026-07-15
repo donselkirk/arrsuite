@@ -68,6 +68,7 @@ grep -q '^Lidarr[[:space:]]\+no[[:space:]]\+8686' <<<"$list_output"
 grep -q '^Prowlarr[[:space:]]\+no[[:space:]]\+9696' <<<"$list_output"
 grep -q '^Byparr[[:space:]]\+no[[:space:]]\+8191' <<<"$list_output"
 grep -q '^FlareSolverr[[:space:]]\+no[[:space:]]\+8192' <<<"$list_output"
+grep -q '^Seerr[[:space:]]\+no[[:space:]]\+5055' <<<"$list_output"
 
 if STD=false run_manager add sonarr; then
   echo "A failed install unexpectedly succeeded." >&2

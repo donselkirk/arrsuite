@@ -27,6 +27,7 @@ if [[ -r "$registry" ]]; then
       prowlarr) label="Prowlarr"; port="9696" ;;
       byparr) label="Byparr"; port="8191" ;;
       flaresolverr) label="FlareSolverr"; port="8192" ;;
+      seerr) label="Seerr"; port="5055" ;;
       *) continue ;;
     esac
 
