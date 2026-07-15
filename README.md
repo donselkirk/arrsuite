@@ -1,6 +1,6 @@
-# ArrSuite Community Script — v1.2
+# ArrSuite Community Script
 
-This prototype creates one Debian LXC and lets the user choose which supported Arr applications to install. The current version supports:
+ArrSuite creates one Debian LXC and lets the user choose which supported Arr applications to install:
 
 - Sonarr — port 8989
 - Radarr — port 7878
@@ -78,17 +78,18 @@ arrsuite list
 arrsuite status
 ```
 
-## Upgrade an existing ArrSuite LXC to v1.2
+## Update an existing ArrSuite LXC
 
-The package includes the updated manager as `tools/arrsuite-manager`. To add Lidarr to a container created by v1.1, copy the manager to the Proxmox host and run:
+Containers with self-update support can refresh the ArrSuite runtime and then
+add another application directly:
 
 ```bash
-pct push <CTID> arrsuite-manager /usr/local/bin/arrsuite
-pct exec <CTID> -- chmod 0755 /usr/local/bin/arrsuite
-pct exec <CTID> -- arrsuite add lidarr
+arrsuite self-update
+arrsuite add lidarr
 ```
 
-This replaces only the ArrSuite manager. It does not alter existing Sonarr, Radarr, or Byparr data. Lidarr then installs into its normal paths and joins the shared `update` command.
+The standard `update` command attempts the same runtime refresh before updating
+every registered application. ArrSuite updates do not alter application data.
 
 ## Console auto-login
 
@@ -105,10 +106,11 @@ the upstream helper does not activate the template's getty service. The
 drop-ins also clear Debian 13's inherited `ImportCredential` directives, which
 can otherwise fail with `243/CREDENTIALS` in an unprivileged LXC.
 
-For a container created with an earlier prototype, run the included repair script as root inside the LXC:
+To repair console auto-login in an existing container, run the published repair
+script as root inside the LXC:
 
 ```bash
-bash tools/fix-console-autologin.sh
+curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/fix-console-autologin.sh | bash
 ```
 
 From the Proxmox host, `pct enter <CTID>` can be used to enter an existing container without relying on its console login.
@@ -125,7 +127,7 @@ registry removes it from the next banner.
 To apply the banner to an existing ArrSuite container, run inside the LXC:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/donselkirk/arrsuite/main/tools/arrsuite-motd.sh \
+curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/arrsuite-motd.sh \
   -o /etc/profile.d/00_lxc-details.sh
 chmod 0755 /etc/profile.d/00_lxc-details.sh
 : >/etc/motd
@@ -137,9 +139,10 @@ The standard Community Scripts container and installer structure is retained:
 
 1. `ct/arrsuite.sh` creates the LXC and exposes the normal `/usr/bin/update` workflow.
 2. `install/arrsuite-install.sh` performs shared container setup once.
-3. The installer saves the Community Scripts function bundle at `/opt/arrsuite/lib/community-functions.sh`.
-4. `/usr/local/bin/arrsuite` sources that bundle when adding or updating an app.
-5. `/opt/arrsuite/installed.apps` is the small registry used to decide which apps participate in `update`.
+3. The installer saves the Community Scripts function and tools bundles under `/opt/arrsuite/lib/`.
+4. `/usr/local/bin/arrsuite` sources those helpers when adding or updating an app.
+5. `/opt/arrsuite/installed.apps` is the registry used to decide which apps participate in `update`.
+6. Fresh installs and self-updates consume validated assets from the latest GitHub release.
 
 The Sonarr, Radarr, Lidarr, Prowlarr, Byparr, and FlareSolverr modules closely
 follow their existing Community Scripts implementations. In particular, they reuse:
@@ -173,7 +176,8 @@ The aggregate defaults are deliberately higher than the individual scripts:
 - nesting disabled (the applications run directly in the LXC without Docker)
 
 Users installing only Sonarr and Radarr can reduce the resources in Advanced
-Settings. For all six applications, especially with Byparr, FlareSolverr, or large libraries,
+Settings. For all six applications, especially with Byparr, FlareSolverr, or
+large libraries,
 8 GB RAM and 24–32 GB disk is a more comfortable allocation. Media and download
 storage should be mounted separately from the LXC root disk.
 
@@ -187,6 +191,16 @@ bash tests/static-checks.sh
 
 This checks the outer scripts, extracts and checks the embedded `arrsuite` manager, validates the JSON metadata, and runs ShellCheck when it is installed.
 
+## Automated validation and releases
+
+Every push to `main` runs `.github/workflows/release.yml`. The workflow installs
+ShellCheck, runs the complete static test suite, checks the Git diff, and stops
+if validation fails. Successful validation creates the next release, generates
+change notes, and publishes the bootstrap, installer, manager, banner, console
+repair tool, checksum manifest, and release metadata. Production installs and
+self-updates use the latest successful release rather than unvalidated branch
+content.
+
 A real acceptance test still requires Proxmox because syntax checks cannot validate LXC creation, systemd startup, release asset matching, or application web interfaces.
 
 ## Proxmox test matrix
@@ -198,7 +212,7 @@ Before submitting upstream, test at least these cases on a disposable Proxmox no
 | Fresh amd64 | Sonarr + Radarr | Both services active; ports 8989 and 7878 answer |
 | Fresh amd64 | All six | All services active; ports 8989, 7878, 8686, 9696, 8191, and 8192 answer |
 | Add later | Initially Sonarr, then `arrsuite add radarr` | Existing Sonarr data remains; Radarr is added |
-| Update all | Run `update` after installing all four | Every registered app is checked; one failure does not prevent later apps being attempted |
+| Update all | Run `update` after installing all selected apps | ArrSuite refreshes itself and every registered app is checked; one failure does not prevent later apps being attempted |
 | No update | Run `update` twice | Second run reports current releases without replacing data |
 | ARM64 | Sonarr + Radarr + Lidarr | All three install; Prowlarr, Byparr, and FlareSolverr selections fail with clear architecture messages |
 | Reboot | Reboot the LXC | Every installed service returns active |

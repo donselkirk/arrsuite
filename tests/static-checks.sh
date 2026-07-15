@@ -149,6 +149,10 @@ grep -q 'bash tests/static-checks.sh' "$release_workflow"
 grep -q 'gh release create' "$release_workflow"
 grep -q 'dist/arrsuite-install.sh' "$release_workflow"
 grep -q 'dist/VERSION' "$release_workflow"
+if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then
+  echo "README must not hard-code an ArrSuite version number." >&2
+  exit 1
+fi
 
 printf 'Running manager behavior tests...\n'
 bash "$behavior_test"
