@@ -23,9 +23,17 @@ optional and unchecked. LXC nesting must default to disabled.
 ## Required behavior
 
 - Allow initial application selection through the installer checklist.
-- Support `arrsuite add [app ...]`, `arrsuite list`, `arrsuite status`, and
+- Support `arrsuite add [app ...]`, `arrsuite list`, `arrsuite status [app ...]`, and
   `arrsuite update [app ...]`, `arrsuite restart [app ...]`, plus
   `arrsuite self-update`.
+- Unknown commands must return a concise error naming the command, display
+  usage, and exit nonzero without invoking the inherited global error trap.
+- App-targeted update, restart, status, backup, and restore operations must
+  validate that the app is supported and installed before acting. Missing apps
+  must fail cleanly and show `arrsuite add <app>` when installation is possible.
+- Expected CLI validation failures must not emit stack-style `in line ...`
+  diagnostics. Keep the manager's top-level status capture so deliberate
+  nonzero results exit intentionally rather than reaching `catch_errors`.
 - `/usr/bin/update` must attempt an ArrSuite self-update and then update every
   installed application. A self-update network failure must not prevent
   application updates.
@@ -54,8 +62,8 @@ optional and unchecked. LXC nesting must default to disabled.
   directly; run the builder after changing a module or the template.
 - `tools/arrsuite-motd.sh` is the standalone copy of the login banner embedded
   in `install/arrsuite-install.sh`.
-- `tests/static-checks.sh` verifies both pairs byte-for-byte. Update both copies
-  whenever either embedded artifact changes.
+- `tests/static-checks.sh` verifies the generated manager and both embedded
+  artifacts byte-for-byte. Regenerate whenever a source artifact changes.
 
 `tools/upstream-lock.json` records the exact Community Scripts install and CT
 source blobs reviewed for every application. Run `bash tools/check-upstream.sh`
@@ -120,15 +128,17 @@ systemd startup, release downloads, or web interfaces.
   `https://github.com/donselkirk/arrsuite.git` when the user asks for a change.
 - Use focused commit messages such as `feat: add Prowlarr module` or
   `fix: clear getty credentials in unprivileged LXC`.
-- Every push to `main` must run the GitHub Actions validation and create the
-  next patch release with generated change notes and stable runtime assets.
-- After every pushed change, verify the generated release and provide a
-  cache-bypassing, version-pinned installation command using that release:
+- Runtime-script pushes to `main` must run GitHub Actions validation and create
+  the next patch release with generated change notes and stable assets.
+  Documentation-only changes do not create releases.
+- After every pushed change, provide a cache-bypassing, commit-pinned
+  installation command using the new commit hash:
 
 ```bash
-ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>" \
-bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/download/<version>/arrsuite.sh)"
+ARRSUITE_REPOSITORY_RAW_URL="https://raw.githubusercontent.com/donselkirk/arrsuite/<commit>" \
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/donselkirk/arrsuite/<commit>/arrsuite.sh)"
 ```
 
-- When applicable, also provide commit-pinned commands to update or repair an
-  existing LXC without reinstalling it.
+- For runtime changes, verify the generated release before handoff. When
+  applicable, also provide commands to update or repair an existing LXC
+  without reinstalling it.
