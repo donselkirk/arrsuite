@@ -101,6 +101,12 @@ if grep -q 'msg_info "Selecting ArrSuite Applications"' "$install_script"; then
 fi
 grep -q 'container-getty@1.service.d/override.conf' "$install_script"
 grep -q 'console-getty.service.d/override.conf' "$install_script"
+grep -q 'systemctl restart container-getty@1.service' "$install_script"
+grep -q 'systemctl restart console-getty.service' "$install_script"
+if grep -q 'systemctl try-restart.*getty' "$install_script"; then
+  echo "Console gettys must start even when they were initially inactive." >&2
+  exit 1
+fi
 grep -q 'exec /usr/local/bin/arrsuite update' "$install_script"
 bash -n "${project_root}/tools/fix-console-autologin.sh"
 

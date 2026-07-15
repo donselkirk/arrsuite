@@ -47,8 +47,10 @@ EOF_CONSOLE
   fi
 
   systemctl daemon-reload
-  systemctl try-restart container-getty@1.service &>/dev/null || true
-  systemctl try-restart console-getty.service &>/dev/null || true
+  systemctl unmask container-getty@1.service console-getty.service &>/dev/null || true
+  systemctl enable container-getty@1.service console-getty.service &>/dev/null || true
+  systemctl restart container-getty@1.service &>/dev/null || true
+  systemctl restart console-getty.service &>/dev/null || true
   msg_ok "Configured Console Auto-Login"
 }
 

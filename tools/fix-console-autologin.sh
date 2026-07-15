@@ -32,6 +32,8 @@ EOF_CONSOLE
 fi
 
 systemctl daemon-reload
+systemctl unmask container-getty@1.service console-getty.service >/dev/null 2>&1 || true
+systemctl enable container-getty@1.service console-getty.service >/dev/null 2>&1 || true
 systemctl restart container-getty@1.service >/dev/null 2>&1 || true
 systemctl restart console-getty.service >/dev/null 2>&1 || true
 
