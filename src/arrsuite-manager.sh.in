@@ -58,15 +58,17 @@ declare -A APP_DATA_DIR=(
   [sonarr]="${APP_DATA_ROOT}/sonarr"
   [radarr]="${APP_DATA_ROOT}/radarr"
   [lidarr]="${APP_DATA_ROOT}/lidarr"
+  [prowlarr]="${APP_DATA_ROOT}/prowlarr"
 )
 
 declare -A APP_API_VERSION=(
   [sonarr]="v3"
   [radarr]="v3"
   [lidarr]="v1"
+  [prowlarr]="v3"
 )
 
-readonly -a BACKUP_APPS=(sonarr radarr lidarr seerr)
+readonly -a BACKUP_APPS=(sonarr radarr lidarr prowlarr seerr bazarr)
 
 [[ $EUID -eq 0 || "${ARRSUITE_ALLOW_NON_ROOT:-0}" == "1" ]] || {
   echo "Run arrsuite as root." >&2
@@ -414,11 +416,11 @@ backup_apps() {
       failures=$((failures + 1))
       continue
     fi
-    if [[ "$app" == "seerr" ]]; then
-      create_seerr_backup "${destination%/}/${app}" || failures=$((failures + 1))
-    else
-      create_native_backup "$app" "${destination%/}/${app}" || failures=$((failures + 1))
-    fi
+    case "$app" in
+      seerr) create_seerr_backup "${destination%/}/${app}" || failures=$((failures + 1)) ;;
+      bazarr) create_bazarr_backup "${destination%/}/${app}" || failures=$((failures + 1)) ;;
+      *) create_native_backup "$app" "${destination%/}/${app}" || failures=$((failures + 1)) ;;
+    esac
   done
   ((failures == 0))
 }
@@ -428,7 +430,7 @@ restore_native_backup() {
   app="$(normalize_app "${1:-}")"
   backup_file="${2:-}"
   supports_backup "$app" || {
-    msg_error "Native restore is supported only for Sonarr, Radarr, and Lidarr"
+    msg_error "Native restore is supported only for Sonarr, Radarr, Lidarr, and Prowlarr"
     return 2
   }
   require_installed_app "$app" || return
@@ -521,15 +523,166 @@ restore_seerr_backup() {
   msg_ok "Restored Seerr from ${backup_file}"
 }
 
+create_bazarr_backup() {
+  local destination="$1" data_dir="${APP_DATA_ROOT}/bazarr" timestamp archive temp_archive was_active=0
+  is_installed bazarr || {
+    msg_error "Bazarr is not installed"
+    return 1
+  }
+  [[ -f "$data_dir/db/bazarr.db" && ! -L "$data_dir/db/bazarr.db" ]] || {
+    msg_error "Bazarr SQLite database not found: ${data_dir}/db/bazarr.db"
+    return 1
+  }
+
+  install -d -m 0750 "$destination"
+  timestamp="$(date +%Y.%m.%d_%H.%M.%S)"
+  archive="${destination%/}/arrsuite_bazarr_backup_${timestamp}.zip"
+  temp_archive="$(mktemp "${destination%/}/.bazarr-backup.XXXXXX")"
+  systemctl is-active --quiet bazarr && was_active=1
+
+  msg_info "Creating Bazarr Data Backup"
+  if ((was_active)); then
+    systemctl stop bazarr || { rm -f "$temp_archive"; return 1; }
+  fi
+  if ! python3 - "$data_dir" "$temp_archive" <<'PYTHON'
+import datetime
+import json
+import os
+import sys
+import zipfile
+
+source, destination = sys.argv[1:]
+manifest = {
+    "application": "bazarr",
+    "format": "arrsuite-bazarr-backup",
+    "schema": 1,
+    "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}
+with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr("arrsuite-backup.json", json.dumps(manifest, indent=2) + "\n")
+    for root, directories, files in os.walk(source):
+        directories[:] = [name for name in directories if not os.path.islink(os.path.join(root, name))]
+        for name in files:
+            path = os.path.join(root, name)
+            if not os.path.islink(path):
+                archive.write(path, os.path.join("data", os.path.relpath(path, source)))
+PYTHON
+  then
+    rm -f "$temp_archive"
+    ((was_active)) && systemctl start bazarr || true
+    msg_error "Failed to create Bazarr backup"
+    return 1
+  fi
+
+  mv "$temp_archive" "$archive"
+  if ((was_active)) && ! systemctl start bazarr; then
+    msg_error "Backup was saved to ${archive}, but Bazarr failed to restart"
+    return 1
+  fi
+  msg_ok "Created Bazarr backup: ${archive}"
+}
+
+validate_bazarr_backup_zip() {
+  python3 - "$1" "${2:-}" <<'PYTHON'
+import json
+import pathlib
+import stat
+import sys
+import zipfile
+
+archive_path, extract_path = sys.argv[1:]
+try:
+    with zipfile.ZipFile(archive_path) as archive:
+        if archive.testzip() is not None:
+            raise ValueError("CRC validation failed")
+        manifest = json.loads(archive.read("arrsuite-backup.json"))
+        if manifest.get("format") != "arrsuite-bazarr-backup" or manifest.get("schema") != 1:
+            raise ValueError("unsupported backup format")
+        items = archive.infolist()
+        names = {item.filename for item in items}
+        if "data/db/bazarr.db" not in names:
+            raise ValueError("SQLite database is missing")
+        if len(items) > 10000 or sum(item.file_size for item in items) > 10 * 1024**3:
+            raise ValueError("archive exceeds restore safety limits")
+        for item in items:
+            if item.file_size > 2 * 1024**3:
+                raise ValueError("archive member exceeds restore safety limit")
+            path = pathlib.PurePosixPath(item.filename)
+            if path.is_absolute() or ".." in path.parts or "\\" in item.filename:
+                raise ValueError("unsafe archive path")
+            if stat.S_ISLNK(item.external_attr >> 16):
+                raise ValueError("symbolic links are not allowed")
+            if item.filename != "arrsuite-backup.json" and path.parts[0] != "data":
+                raise ValueError("unexpected archive content")
+        if extract_path:
+            archive.extractall(extract_path)
+except (KeyError, OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError):
+    sys.exit(1)
+PYTHON
+}
+
+restore_bazarr_backup() {
+  local backup_file="$1" data_dir="${APP_DATA_ROOT}/bazarr" stage_dir rollback_dir
+  [[ -f "$backup_file" && -r "$backup_file" && "${backup_file,,}" == *.zip ]] || {
+    msg_error "Provide a readable Bazarr backup ZIP"
+    return 2
+  }
+  validate_bazarr_backup_zip "$backup_file" || {
+    msg_error "The selected file is not a valid ArrSuite Bazarr backup ZIP"
+    return 2
+  }
+
+  msg_info "Creating Pre-Restore Safety Backup for Bazarr"
+  create_bazarr_backup "${BASE_DIR}/backups/pre-restore/bazarr" || {
+    msg_error "Restore cancelled because the safety backup failed"
+    return 1
+  }
+  stage_dir="$(mktemp -d)"
+  if ! validate_bazarr_backup_zip "$backup_file" "$stage_dir"; then
+    rm -rf "$stage_dir"
+    return 1
+  fi
+  rollback_dir="${data_dir}.arrsuite-rollback.$(date +%s).$$"
+
+  msg_info "Restoring Bazarr from ${backup_file}"
+  systemctl stop bazarr || { rm -rf "$stage_dir"; return 1; }
+  mv "$data_dir" "$rollback_dir" || {
+    systemctl start bazarr || true
+    rm -rf "$stage_dir"
+    return 1
+  }
+  if ! mv "$stage_dir/data" "$data_dir" || ! systemctl start bazarr || ! systemctl is-active --quiet bazarr; then
+    systemctl stop bazarr || true
+    rm -rf "$data_dir"
+    if ! mv "$rollback_dir" "$data_dir"; then
+      msg_error "Bazarr restore and automatic rollback both failed; recovery data remains at ${rollback_dir}"
+      rm -rf "$stage_dir"
+      return 1
+    fi
+    systemctl start bazarr || true
+    rm -rf "$stage_dir"
+    msg_error "Bazarr restore failed; the previous data was restored"
+    return 1
+  fi
+
+  rm -rf "$rollback_dir" "$stage_dir"
+  msg_ok "Restored Bazarr from ${backup_file}"
+}
+
 restore_backup() {
   local app
   app="$(normalize_app "${1:-}")"
-  if [[ "$app" == "seerr" ]]; then
-    require_installed_app seerr || return
-    restore_seerr_backup "$2"
-  else
-    restore_native_backup "$app" "$2"
-  fi
+  case "$app" in
+    seerr)
+      require_installed_app seerr || return
+      restore_seerr_backup "${2:-}"
+      ;;
+    bazarr)
+      require_installed_app bazarr || return
+      restore_bazarr_backup "${2:-}"
+      ;;
+    *) restore_native_backup "$app" "${2:-}" ;;
+  esac
 }
 
 acquire_lock() {
@@ -900,9 +1053,9 @@ Usage:
   arrsuite self-update         Update ArrSuite and Community Scripts helpers
   arrsuite version             Show the installed ArrSuite release version
   arrsuite backup [app ...] [--output directory]
-                               Back up Sonarr, Radarr, Lidarr, and/or Seerr
+                               Back up Sonarr, Radarr, Lidarr, Prowlarr, Seerr, and/or Bazarr
   arrsuite restore app backup.zip
-                               Restore a Sonarr, Radarr, Lidarr, or Seerr backup
+                               Restore a Sonarr, Radarr, Lidarr, Prowlarr, Seerr, or Bazarr backup
   arrsuite list                Show supported apps, ports, and service state
   arrsuite status [app ...]    Show status for all installed apps, or only named apps
   arrsuite help                Show this help

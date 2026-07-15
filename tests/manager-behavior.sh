@@ -8,12 +8,15 @@ trap 'rm -rf "$test_root"' EXIT
 
 mkdir -p "$test_root/bin" "$test_root/lib" "$test_root/run" "$test_root/runtime" \
   "$test_root/app-data/sonarr" "$test_root/app-data/radarr" "$test_root/app-data/lidarr" \
+  "$test_root/app-data/prowlarr" "$test_root/app-data/bazarr/db" \
   "$test_root/seerr-config/db" \
   "$test_root/seerr-config/logs"
 printf 'seerr-database-fixture\n' >"$test_root/seerr-config/db/db.sqlite3"
 printf '{"initialized":true}\n' >"$test_root/seerr-config/settings.json"
 ln -s /tmp/seerr-machine-logs.json "$test_root/seerr-config/logs/.machinelogs.json"
-for app in sonarr radarr lidarr; do
+printf 'bazarr-database-fixture\n' >"$test_root/app-data/bazarr/db/bazarr.db"
+printf '[general]\n' >"$test_root/app-data/bazarr/config.ini"
+for app in sonarr radarr lidarr prowlarr; do
   cat >"$test_root/app-data/$app/config.xml" <<'EOF_CONFIG'
 <Config>
   <UrlBase></UrlBase>
@@ -68,11 +71,16 @@ case "$url" in
     printf '[{"type":"manual","path":"/backup/manual/lidarr_backup_test.zip","name":"lidarr_backup_test.zip","time":"2099-01-01T00:00:00Z"}]\n'
     exit 0
     ;;
+  *:9696/api/v3/system/backup)
+    printf '[{"type":"manual","path":"/backup/manual/prowlarr_backup_test.zip","name":"prowlarr_backup_test.zip","time":"2099-01-01T00:00:00Z"}]\n'
+    exit 0
+    ;;
   */api/v[13]/system/backup/restore/upload) printf '{"restartRequired":true}\n'; exit 0 ;;
   */backup/manual/*)
     app="sonarr"
     [[ "$url" == *radarr* ]] && app="radarr"
     [[ "$url" == *lidarr* ]] && app="lidarr"
+    [[ "$url" == *prowlarr* ]] && app="prowlarr"
     python3 - "$output" "$app" <<'PYTHON'
 import sys
 import zipfile
@@ -209,7 +217,7 @@ grep -q 'arrsuite backup \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite restore app backup.zip' <<<"$status_output"
 
 if run_manager backup bazarr; then
-  echo "An unsupported native backup unexpectedly succeeded." >&2
+  echo "A backup of an uninstalled app unexpectedly succeeded." >&2
   exit 1
 fi
 
@@ -226,6 +234,12 @@ python3 -m zipfile -t "$test_root/backups/lidarr/lidarr_backup_test.zip"
 run_manager restore lidarr "$test_root/backups/lidarr/lidarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/pre-restore/lidarr/lidarr_backup_test.zip"
 
+printf '%s\n' sonarr radarr lidarr prowlarr >"$test_root/installed.apps"
+run_manager backup prowlarr --output "$test_root/backups"
+python3 -m zipfile -t "$test_root/backups/prowlarr/prowlarr_backup_test.zip"
+run_manager restore prowlarr "$test_root/backups/prowlarr/prowlarr_backup_test.zip"
+python3 -m zipfile -t "$test_root/backups/pre-restore/prowlarr/prowlarr_backup_test.zip"
+
 printf '%s\n' sonarr radarr lidarr seerr >"$test_root/installed.apps"
 run_manager backup seerr --output "$test_root/backups"
 seerr_backup="$(find "$test_root/backups/seerr" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
@@ -233,6 +247,14 @@ seerr_backup="$(find "$test_root/backups/seerr" -maxdepth 1 -name 'arrsuite_seer
 python3 -m zipfile -t "$seerr_backup"
 run_manager restore seerr "$seerr_backup"
 python3 -m zipfile -t "$(find "$test_root/backups/pre-restore/seerr" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
+
+printf '%s\n' sonarr radarr lidarr prowlarr seerr bazarr >"$test_root/installed.apps"
+run_manager backup bazarr --output "$test_root/backups"
+bazarr_backup="$(find "$test_root/backups/bazarr" -maxdepth 1 -name 'arrsuite_bazarr_backup_*.zip' -print -quit)"
+[[ -n "$bazarr_backup" ]]
+python3 -m zipfile -t "$bazarr_backup"
+run_manager restore bazarr "$bazarr_backup"
+python3 -m zipfile -t "$(find "$test_root/backups/pre-restore/bazarr" -maxdepth 1 -name 'arrsuite_bazarr_backup_*.zip' -print -quit)"
 
 mkdir -p "$test_root/external-seerr-backups"
 SEERR_CONFIG_DIR="$test_root/seerr-config" \
@@ -272,6 +294,7 @@ if run_manager restore seerr "$test_root/invalid-seerr.zip"; then
   exit 1
 fi
 
+printf '%s\n' sonarr radarr lidarr prowlarr seerr >"$test_root/installed.apps"
 run_manager restart sonarr
 run_manager restart
 if run_manager restart bazarr; then

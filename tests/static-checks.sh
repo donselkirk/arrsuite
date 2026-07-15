@@ -159,6 +159,9 @@ grep -q '/system/backup/restore/upload' "$install_script"
 grep -q 'Creating Pre-Restore Safety Backup' "$install_script"
 grep -q 'create_seerr_backup()' "$install_script"
 grep -q 'restore_seerr_backup()' "$install_script"
+grep -q 'create_bazarr_backup()' "$install_script"
+grep -q 'restore_bazarr_backup()' "$install_script"
+grep -q '\[prowlarr\]="v3"' "$install_script"
 grep -q 'self-update failed; continuing with application updates' "$install_script"
 if grep -q 'return 130' "$install_script"; then
   echo "Checklist cancellation must not trigger the global error handler." >&2

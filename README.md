@@ -140,15 +140,17 @@ arrsuite restart sonarr radarr
 
 ## Backup and restore
 
-ArrSuite currently supports application-level backup and restore for Sonarr,
-Radarr, Lidarr, and Seerr.
+ArrSuite supports application-level backup and restore for Sonarr, Radarr,
+Lidarr, Prowlarr, Seerr, and Bazarr.
 
 | Application | Backup method | Includes |
 |---|---|---|
 | Sonarr | Native application API | Configuration and database |
 | Radarr | Native application API | Configuration and database |
 | Lidarr | Native application API | Configuration and database |
+| Prowlarr | Native application API | Configuration and database |
 | Seerr | Consistent archive while stopped | Settings and SQLite database |
+| Bazarr | Consistent archive while stopped | Configuration and SQLite database |
 
 Backups do not include media files. By default, archives are written below
 `/opt/arrsuite/backups/<app>/`.
@@ -160,7 +162,9 @@ arrsuite backup
 # Back up selected applications
 arrsuite backup sonarr radarr
 arrsuite backup lidarr
+arrsuite backup prowlarr
 arrsuite backup seerr
+arrsuite backup bazarr
 
 # Use another directory or mounted backup location
 arrsuite backup radarr --output /mnt/backups
@@ -172,13 +176,17 @@ Restore one application from a ZIP archive:
 arrsuite restore sonarr /root/sonarr_backup.zip
 arrsuite restore radarr /root/radarr_backup.zip
 arrsuite restore lidarr /root/lidarr_backup.zip
+arrsuite restore prowlarr /root/prowlarr_backup.zip
 arrsuite restore seerr /root/arrsuite_seerr_backup.zip
+arrsuite restore bazarr /root/arrsuite_bazarr_backup.zip
 ```
 
 Before restoring, ArrSuite creates a safety backup in
-`/opt/arrsuite/backups/pre-restore/<app>/`. Sonarr, Radarr, and Lidarr use their
-native restore endpoints. Seerr validates and safely extracts its archive,
-with automatic rollback if its service does not restart.
+`/opt/arrsuite/backups/pre-restore/<app>/`. Sonarr, Radarr, Lidarr, and Prowlarr
+use their native restore endpoints. Seerr and Bazarr validate and safely
+extract their archives, with automatic rollback if the service does not
+restart. Bazarr backups cover ArrSuite's default SQLite configuration; an
+externally configured PostgreSQL database must be backed up separately.
 
 To copy and restore a backup from the Proxmox host:
 
