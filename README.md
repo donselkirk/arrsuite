@@ -86,9 +86,10 @@ arrsuite list
 # Show systemd status for installed apps
 arrsuite status
 
-# Create Sonarr, Radarr, and Seerr backups under /opt/arrsuite/backups
+# Create Sonarr, Radarr, Lidarr, and Seerr backups under /opt/arrsuite/backups
 arrsuite backup
 arrsuite backup sonarr
+arrsuite backup lidarr
 arrsuite backup seerr
 
 # Write a native backup to another directory or mounted backup location
@@ -97,13 +98,14 @@ arrsuite backup radarr --output /mnt/backups
 # Restore an application-generated backup archive
 arrsuite restore sonarr /mnt/backups/sonarr_backup.zip
 arrsuite restore radarr /mnt/backups/radarr_backup.zip
+arrsuite restore lidarr /mnt/backups/lidarr_backup.zip
 arrsuite restore seerr /mnt/backups/arrsuite_seerr_backup.zip
 ```
 
 ## Application backup and restore
 
-ArrSuite uses the applications' native APIs to create and restore Sonarr and
-Radarr backups. A backup contains the application's own configuration and
+ArrSuite uses the applications' native APIs to create and restore Sonarr,
+Radarr, and Lidarr backups. A backup contains the application's own configuration and
 SQLite database; it does not contain media files. With no application names,
 `arrsuite backup` backs up every installed application that currently supports
 ArrSuite backups. Archives are copied to `/opt/arrsuite/backups/<app>/` unless
@@ -116,7 +118,7 @@ starting the service again. Seerr archives contain an ArrSuite format marker
 and are validated before restoration.
 
 Before restoring an archive, ArrSuite creates a fresh safety backup under
-`/opt/arrsuite/backups/pre-restore/<app>/`. Sonarr and Radarr archives are sent
+`/opt/arrsuite/backups/pre-restore/<app>/`. Sonarr, Radarr, and Lidarr archives are sent
 through their native restore endpoints. Seerr archives are safely extracted
 while its service is stopped, with automatic rollback if it fails to restart.
 Copy backup ZIPs into the LXC with `pct push`, SCP, a mounted backup directory,
@@ -219,7 +221,7 @@ The standard Community Scripts container and installer structure is retained:
 4. `/usr/local/bin/arrsuite` sources those helpers when adding or updating an app.
 5. `/opt/arrsuite/installed.apps` is the registry used to decide which apps participate in `update`.
 6. Fresh installs and self-updates consume validated assets from the latest GitHub release.
-7. Sonarr and Radarr backups use their local APIs; Seerr backups use a validated archive of its persistent config directory.
+7. Sonarr, Radarr, and Lidarr backups use their local APIs; Seerr backups use a validated archive of its persistent config directory.
 
 The Sonarr, Radarr, Lidarr, Prowlarr, Byparr, FlareSolverr, Seerr, and Bazarr modules closely
 follow their existing Community Scripts implementations. In particular, they reuse:
@@ -297,7 +299,7 @@ Before submitting upstream, test at least these cases on a disposable Proxmox no
 | ARM64 | Sonarr + Radarr + Lidarr + Seerr + Bazarr | All five install; Prowlarr, Byparr, and FlareSolverr selections fail with clear architecture messages |
 | Reboot | Reboot the LXC | Every installed service returns active |
 | Blank password | Leave root password blank | Web console and `pct console` auto-login as root |
-| Application restore | Create and restore Sonarr, Radarr, and Seerr backup ZIPs | Safety backup is retained and restored service returns active |
+| Application restore | Create and restore Sonarr, Radarr, Lidarr, and Seerr backup ZIPs | Safety backup is retained and restored service returns active |
 | Backup restore | Back up and restore the LXC | App configurations and registry remain intact |
 
 ## Testing from a fork

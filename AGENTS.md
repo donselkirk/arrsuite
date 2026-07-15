@@ -29,9 +29,9 @@ optional and unchecked. LXC nesting must default to disabled.
 - `/usr/bin/update` must attempt an ArrSuite self-update and then update every
   installed application. A self-update network failure must not prevent
   application updates.
-- Support Sonarr, Radarr, and Seerr backup creation and restoration through
+- Support Sonarr, Radarr, Lidarr, and Seerr backup creation and restoration through
   `arrsuite backup` and `arrsuite restore`; always create a safety backup before
-  restoring an uploaded archive. Sonarr and Radarr use native APIs. Seerr uses
+  restoring an uploaded archive. Sonarr, Radarr, and Lidarr use native APIs. Seerr uses
   a validated archive of `/opt/seerr/config` while its service is stopped.
 - Track installed applications in `/opt/arrsuite/installed.apps`.
 - A failed install must never be added to the registry.

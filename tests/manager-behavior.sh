@@ -7,12 +7,13 @@ test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
 
 mkdir -p "$test_root/bin" "$test_root/lib" "$test_root/run" "$test_root/runtime" \
-  "$test_root/app-data/sonarr" "$test_root/app-data/radarr" "$test_root/seerr-config/db" \
+  "$test_root/app-data/sonarr" "$test_root/app-data/radarr" "$test_root/app-data/lidarr" \
+  "$test_root/seerr-config/db" \
   "$test_root/seerr-config/logs"
 printf 'seerr-database-fixture\n' >"$test_root/seerr-config/db/db.sqlite3"
 printf '{"initialized":true}\n' >"$test_root/seerr-config/settings.json"
 ln -s /tmp/seerr-machine-logs.json "$test_root/seerr-config/logs/.machinelogs.json"
-for app in sonarr radarr; do
+for app in sonarr radarr lidarr; do
   cat >"$test_root/app-data/$app/config.xml" <<'EOF_CONFIG'
 <Config>
   <UrlBase></UrlBase>
@@ -49,8 +50,8 @@ while (($#)); do
   esac
 done
 case "$url" in
-  */api/v3/command/42) printf '{"status":"completed"}\n'; exit 0 ;;
-  */api/v3/command)
+  */api/v[13]/command/42) printf '{"status":"completed"}\n'; exit 0 ;;
+  */api/v[13]/command)
     [[ "$method" == "POST" ]] || exit 22
     printf '{"id":42}\n'
     exit 0
@@ -63,10 +64,15 @@ case "$url" in
     printf '[{"type":"manual","path":"/backup/manual/radarr_backup_test.zip","name":"radarr_backup_test.zip","time":"2099-01-01T00:00:00Z"}]\n'
     exit 0
     ;;
-  */api/v3/system/backup/restore/upload) printf '{"restartRequired":true}\n'; exit 0 ;;
+  *:8686/api/v1/system/backup)
+    printf '[{"type":"manual","path":"/backup/manual/lidarr_backup_test.zip","name":"lidarr_backup_test.zip","time":"2099-01-01T00:00:00Z"}]\n'
+    exit 0
+    ;;
+  */api/v[13]/system/backup/restore/upload) printf '{"restartRequired":true}\n'; exit 0 ;;
   */backup/manual/*)
     app="sonarr"
     [[ "$url" == *radarr* ]] && app="radarr"
+    [[ "$url" == *lidarr* ]] && app="lidarr"
     python3 - "$output" "$app" <<'PYTHON'
 import sys
 import zipfile
@@ -181,8 +187,13 @@ run_manager restore sonarr "$test_root/backups/sonarr/sonarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/pre-restore/sonarr/sonarr_backup_test.zip"
 run_manager restore radarr "$test_root/backups/radarr/radarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/pre-restore/radarr/radarr_backup_test.zip"
+printf '%s\n' sonarr radarr lidarr >"$test_root/installed.apps"
+run_manager backup lidarr --output "$test_root/backups"
+python3 -m zipfile -t "$test_root/backups/lidarr/lidarr_backup_test.zip"
+run_manager restore lidarr "$test_root/backups/lidarr/lidarr_backup_test.zip"
+python3 -m zipfile -t "$test_root/backups/pre-restore/lidarr/lidarr_backup_test.zip"
 
-printf '%s\n' sonarr radarr seerr >"$test_root/installed.apps"
+printf '%s\n' sonarr radarr lidarr seerr >"$test_root/installed.apps"
 run_manager backup seerr --output "$test_root/backups"
 seerr_backup="$(find "$test_root/backups/seerr" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
 [[ -n "$seerr_backup" ]]
@@ -230,7 +241,7 @@ fi
 
 run_manager restart sonarr
 run_manager restart
-if run_manager restart lidarr; then
+if run_manager restart bazarr; then
   echo "Restarting an uninstalled application unexpectedly succeeded." >&2
   exit 1
 fi

@@ -57,9 +57,16 @@ declare -A APP_PORT=(
 declare -A APP_DATA_DIR=(
   [sonarr]="${APP_DATA_ROOT}/sonarr"
   [radarr]="${APP_DATA_ROOT}/radarr"
+  [lidarr]="${APP_DATA_ROOT}/lidarr"
 )
 
-readonly -a BACKUP_APPS=(sonarr radarr seerr)
+declare -A APP_API_VERSION=(
+  [sonarr]="v3"
+  [radarr]="v3"
+  [lidarr]="v1"
+)
+
+readonly -a BACKUP_APPS=(sonarr radarr lidarr seerr)
 
 [[ $EUID -eq 0 || "${ARRSUITE_ALLOW_NON_ROOT:-0}" == "1" ]] || {
   echo "Run arrsuite as root." >&2
@@ -151,7 +158,7 @@ configure_app_api() {
   fi
   APP_API_KEY="$api_key"
   APP_WEB_URL="http://127.0.0.1:${APP_PORT[$app]}${url_base}"
-  APP_API_URL="${APP_WEB_URL}/api/v3"
+  APP_API_URL="${APP_WEB_URL}/api/${APP_API_VERSION[$app]}"
 }
 
 wait_for_app_command() {
@@ -183,7 +190,8 @@ try:
         if archive.testzip() is not None:
             raise ValueError("CRC validation failed")
         expected = f"{sys.argv[2].lower()}.db"
-        if expected not in names and "nzbdrone.db" not in names:
+        legacy_allowed = sys.argv[2].lower() in {"sonarr", "radarr"} and "nzbdrone.db" in names
+        if expected not in names and not legacy_allowed:
             raise ValueError("archive does not contain the expected database")
 except (OSError, ValueError, zipfile.BadZipFile):
     sys.exit(1)
@@ -399,7 +407,7 @@ restore_native_backup() {
   app="$(normalize_app "${1:-}")"
   backup_file="${2:-}"
   supports_backup "$app" || {
-    msg_error "Native restore is supported only for Sonarr and Radarr"
+    msg_error "Native restore is supported only for Sonarr, Radarr, and Lidarr"
     return 2
   }
   is_installed "$app" || {
@@ -1425,9 +1433,9 @@ Usage:
   arrsuite self-update         Update ArrSuite and Community Scripts helpers
   arrsuite version             Show the installed ArrSuite release version
   arrsuite backup [app ...] [--output directory]
-                               Back up Sonarr, Radarr, and/or Seerr
+                               Back up Sonarr, Radarr, Lidarr, and/or Seerr
   arrsuite restore app backup.zip
-                               Restore a Sonarr, Radarr, or Seerr backup
+                               Restore a Sonarr, Radarr, Lidarr, or Seerr backup
   arrsuite list                Show supported apps, ports, and service state
   arrsuite status              Show systemd status for installed apps
   arrsuite help                Show this help
@@ -1482,7 +1490,7 @@ main() {
       acquire_lock
       shift
       (($# == 2)) || {
-        msg_error "Usage: arrsuite restore sonarr|radarr|seerr backup.zip"
+        msg_error "Usage: arrsuite restore sonarr|radarr|lidarr|seerr backup.zip"
         exit 2
       }
       restore_backup "$1" "$2"
