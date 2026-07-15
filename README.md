@@ -1,38 +1,249 @@
 # ArrSuite Community Script
 
-ArrSuite creates one Debian LXC and lets the user choose which supported Arr applications to install:
+ArrSuite creates a single unprivileged Debian 13 Proxmox LXC for running
+multiple Arr applications directly, without Docker. Choose the applications
+you want during installation, then add, update, restart, back up, or restore
+them later with the `arrsuite` command.
 
-- Sonarr — port 8989
-- Radarr — port 7878
-- Lidarr — port 8686 (optional)
-- Prowlarr — port 9696 (optional; amd64 only)
-- Byparr — port 8191 (optional; amd64 only)
-- FlareSolverr — port 8192 (optional; amd64 only)
-- Seerr — port 5055 (optional)
-- Bazarr — port 6767 (optional)
+## Supported applications
 
-The implementation is intentionally bare-metal inside the LXC. It does not install Docker.
+| Application | Port | Initial selection | Architecture |
+|---|---:|---|---|
+| Sonarr | 8989 | Selected | amd64, arm64 |
+| Radarr | 7878 | Selected | amd64, arm64 |
+| Lidarr | 8686 | Optional | amd64, arm64 |
+| Prowlarr | 9696 | Optional | amd64 only |
+| Byparr | 8191 | Optional | amd64 only |
+| FlareSolverr | 8192 | Optional | amd64 only |
+| Seerr | 5055 | Optional | amd64, arm64 |
+| Bazarr | 6767 | Optional | amd64, arm64 |
 
-Sonarr and Radarr are selected by default. Lidarr, Prowlarr, Byparr,
-FlareSolverr, Seerr, and Bazarr are optional and unchecked in the installation checklist.
-FlareSolverr uses port 8192 in ArrSuite because its upstream default of 8191
-conflicts with Byparr.
+FlareSolverr uses port 8192 in ArrSuite because its usual port conflicts with
+Byparr. Sonarr and Radarr are selected by default; every other application is
+unchecked. LXC nesting is disabled by default because the applications run
+directly inside the container.
 
-## Run from a Proxmox shell
+## Quick start
 
-Run the repository bootstrap as root on the Proxmox VE host:
+Run this command as `root` in the Proxmox VE host shell:
 
 ```bash
 bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/arrsuite.sh)"
 ```
 
-The bootstrap downloads the current Community Scripts `build.func` at runtime
-and redirects only the application-specific installer request to the latest
-validated ArrSuite GitHub release. This keeps the container creation workflow
-on the latest upstream helpers without requiring a full fork of the Community
-Scripts repository.
+The installer opens a checklist for application selection and then uses the
+standard Community Scripts container-creation workflow. After installation,
+open an application at `http://<LXC-IP>:<port>`.
 
-## Included upstream files
+The default container resources are:
+
+- 2 CPU cores
+- 6144 MB RAM
+- 16 GB disk
+- Debian 13 in an unprivileged LXC
+- Nesting disabled
+
+These defaults suit a typical multi-application installation. A container
+running all applications, a large library, or browser-based services may
+benefit from 8 GB RAM and 24–32 GB of disk. Mount media and download storage
+separately from the LXC root disk.
+
+## Everyday commands
+
+Run these commands inside the ArrSuite LXC.
+
+### View applications
+
+```bash
+# Supported applications, ports, installation state, and service state
+arrsuite list
+
+# Detailed systemd status for installed applications
+arrsuite status
+
+# Installed ArrSuite release
+arrsuite version
+```
+
+The login banner also reads `/opt/arrsuite/installed.apps` dynamically and
+shows each installed application's URL, port, and current service state.
+
+### Add applications
+
+```bash
+# Open a checklist containing applications that are not installed
+arrsuite add
+
+# Add one or more applications directly
+arrsuite add lidarr
+arrsuite add prowlarr bazarr
+```
+
+Canceling the checklist makes no changes. An application is added to
+`/opt/arrsuite/installed.apps` only after it installs successfully.
+
+### Update applications
+
+```bash
+# Refresh ArrSuite and update every installed application
+update
+
+# Equivalent manager command
+arrsuite update
+
+# Update selected applications only
+arrsuite update sonarr radarr
+
+# Update only the ArrSuite manager and supporting tools
+arrsuite self-update
+```
+
+Self-update always reports the installed release or the release it updated to.
+Application data is preserved during updates. If one application update fails,
+ArrSuite continues with the remaining applications and returns a failure when
+the run is complete.
+
+### Restart applications
+
+```bash
+# Restart every installed application
+arrsuite restart
+
+# Restart one or more applications
+arrsuite restart sonarr
+arrsuite restart sonarr radarr
+```
+
+## Backup and restore
+
+ArrSuite currently supports application-level backup and restore for Sonarr,
+Radarr, Lidarr, and Seerr.
+
+| Application | Backup method | Includes |
+|---|---|---|
+| Sonarr | Native application API | Configuration and database |
+| Radarr | Native application API | Configuration and database |
+| Lidarr | Native application API | Configuration and database |
+| Seerr | Consistent archive while stopped | Settings and SQLite database |
+
+Backups do not include media files. By default, archives are written below
+`/opt/arrsuite/backups/<app>/`.
+
+```bash
+# Back up every installed application that supports backups
+arrsuite backup
+
+# Back up selected applications
+arrsuite backup sonarr radarr
+arrsuite backup lidarr
+arrsuite backup seerr
+
+# Use another directory or mounted backup location
+arrsuite backup radarr --output /mnt/backups
+```
+
+Restore one application from a ZIP archive:
+
+```bash
+arrsuite restore sonarr /root/sonarr_backup.zip
+arrsuite restore radarr /root/radarr_backup.zip
+arrsuite restore lidarr /root/lidarr_backup.zip
+arrsuite restore seerr /root/arrsuite_seerr_backup.zip
+```
+
+Before restoring, ArrSuite creates a safety backup in
+`/opt/arrsuite/backups/pre-restore/<app>/`. Sonarr, Radarr, and Lidarr use their
+native restore endpoints. Seerr validates and safely extracts its archive,
+with automatic rollback if its service does not restart.
+
+To copy and restore a backup from the Proxmox host:
+
+```bash
+pct push <CTID> ./sonarr_backup.zip /root/sonarr_backup.zip
+pct exec <CTID> -- arrsuite restore sonarr /root/sonarr_backup.zip
+```
+
+### Migrate Seerr from another installation
+
+For a native Community Scripts Seerr LXC, run the following as `root` inside
+that LXC. The final argument is the backup output directory:
+
+```bash
+bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/seerr-backup.sh)" -- /root
+```
+
+For Docker, run the tool on the Docker host and provide the container name:
+
+```bash
+bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/seerr-backup.sh)" -- --docker seerr /root
+```
+
+Replace `seerr` with the actual container name. Docker mode requires the
+container to be running. It stops the container, copies `/app/config` while the
+database is idle, skips nonportable symbolic links, creates a compatible ZIP,
+and restarts the container. For a different internal config path:
+
+```bash
+SEERR_DOCKER_CONFIG_PATH=/custom/config \
+  bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/seerr-backup.sh)" -- --docker seerr /root
+```
+
+Transfer the generated ZIP to the ArrSuite LXC and run
+`arrsuite restore seerr <backup.zip>`.
+
+## Console access
+
+If the root password is left blank during creation, ArrSuite configures root
+auto-login for both Proxmox console paths:
+
+| Service | Console |
+|---|---|
+| `container-getty@1.service` | Proxmox web UI (`/dev/tty1`) |
+| `console-getty.service` | `pct console` (`/dev/console`) |
+
+The installer preserves Debian's `ImportCredential=` directives while clearing
+the inherited credential imports that otherwise cause `243/CREDENTIALS` in an
+unprivileged Debian 13 LXC.
+
+If an existing container has a blank console, enter it from the Proxmox host
+with `pct enter <CTID>`, then run:
+
+```bash
+curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/fix-console-autologin.sh | bash
+```
+
+## How ArrSuite works
+
+ArrSuite retains the Community Scripts container and installer conventions:
+
+1. `ct/arrsuite.sh` creates the LXC and provides `/usr/bin/update`.
+2. `install/arrsuite-install.sh` performs shared setup and installs the selected modules.
+3. `/usr/local/bin/arrsuite` manages applications after installation.
+4. `/opt/arrsuite/installed.apps` records successfully installed applications.
+5. `/opt/arrsuite/lib/` stores the helper snapshots used by the manager.
+6. Installs and self-updates consume validated assets from the latest GitHub release.
+
+Each application remains an isolated module with its own dependencies, release
+logic, service, data path, architecture rules, install function, and update
+function. The modules follow the corresponding individual Community Scripts
+implementations and reuse their helpers wherever practical.
+
+Common paths are:
+
+| Application | Program path | Data path | Service |
+|---|---|---|---|
+| Sonarr | `/opt/Sonarr` | `/var/lib/sonarr` | `sonarr.service` |
+| Radarr | `/opt/Radarr` | `/var/lib/radarr` | `radarr.service` |
+| Lidarr | `/opt/Lidarr` | `/var/lib/lidarr` | `lidarr.service` |
+| Prowlarr | `/opt/Prowlarr` | `/var/lib/prowlarr` | `prowlarr.service` |
+| Byparr | `/opt/Byparr` | — | `byparr.service` |
+| FlareSolverr | `/opt/flaresolverr` | — | `flaresolverr.service` |
+| Seerr | `/opt/seerr` | `/opt/seerr/config` | `seerr.service` |
+| Bazarr | `/opt/bazarr` | `/var/lib/bazarr` | `bazarr.service` |
+
+## Development
+
+The upstream-compatible project files are:
 
 ```text
 ct/arrsuite.sh
@@ -40,302 +251,57 @@ install/arrsuite-install.sh
 json/arrsuite.json
 ```
 
-The `tests/` directory and this README are development aids and do not necessarily need to be included in the final upstream pull request.
-
-## User commands inside the LXC
-
-```bash
-# Open a checklist containing apps that are not installed yet
-arrsuite add
-
-# Esc or Cancel closes the checklist without changing installed applications
-
-# Add one or more named apps without the checklist
-arrsuite add sonarr radarr
-arrsuite add lidarr
-arrsuite add prowlarr
-arrsuite add byparr
-arrsuite add flaresolverr
-arrsuite add seerr
-arrsuite add bazarr
-
-# Update every installed app
-update
-
-# Equivalent direct manager command
-arrsuite update
-
-# Restart every installed application, or only selected applications
-arrsuite restart
-arrsuite restart sonarr
-arrsuite restart sonarr radarr
-
-# Update only the ArrSuite manager, banner, repair tool, and helper snapshots
-arrsuite self-update
-
-# Display the installed release version
-arrsuite version
-
-# Update only selected installed apps
-arrsuite update sonarr radarr
-arrsuite update lidarr
-
-# Show supported apps, ports, installation state, and service state
-arrsuite list
-
-# Show systemd status for installed apps
-arrsuite status
-
-# Create Sonarr, Radarr, Lidarr, and Seerr backups under /opt/arrsuite/backups
-arrsuite backup
-arrsuite backup sonarr
-arrsuite backup lidarr
-arrsuite backup seerr
-
-# Write a native backup to another directory or mounted backup location
-arrsuite backup radarr --output /mnt/backups
-
-# Restore an application-generated backup archive
-arrsuite restore sonarr /mnt/backups/sonarr_backup.zip
-arrsuite restore radarr /mnt/backups/radarr_backup.zip
-arrsuite restore lidarr /mnt/backups/lidarr_backup.zip
-arrsuite restore seerr /mnt/backups/arrsuite_seerr_backup.zip
-```
-
-## Application backup and restore
-
-ArrSuite uses the applications' native APIs to create and restore Sonarr,
-Radarr, and Lidarr backups. A backup contains the application's own configuration and
-SQLite database; it does not contain media files. With no application names,
-`arrsuite backup` backs up every installed application that currently supports
-ArrSuite backups. Archives are copied to `/opt/arrsuite/backups/<app>/` unless
-`--output` selects another directory.
-
-Seerr has no equivalent backup API. Following Seerr's official SQLite backup
-guidance, ArrSuite briefly stops `seerr.service` and archives
-`/opt/seerr/config`, including `settings.json` and `db/db.sqlite3`, before
-starting the service again. Seerr archives contain an ArrSuite format marker
-and are validated before restoration.
-
-Before restoring an archive, ArrSuite creates a fresh safety backup under
-`/opt/arrsuite/backups/pre-restore/<app>/`. Sonarr, Radarr, and Lidarr archives are sent
-through their native restore endpoints. Seerr archives are safely extracted
-while its service is stopped, with automatic rollback if it fails to restart.
-Copy backup ZIPs into the LXC with `pct push`, SCP, a mounted backup directory,
-or another preferred transfer method before running `arrsuite restore`.
-
-Example from the Proxmox host:
-
-```bash
-pct push <CTID> ./sonarr_backup.zip /root/sonarr_backup.zip
-pct exec <CTID> -- arrsuite restore sonarr /root/sonarr_backup.zip
-```
-
-To create a compatible backup inside a separate Community Scripts Seerr LXC,
-run this command as root. The optional final argument is the output directory:
-
-```bash
-bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/seerr-backup.sh)" -- /root
-```
-
-The standalone tool detects `/opt/seerr/config`, stops Seerr for SQLite
-consistency, creates `arrsuite_seerr_backup_<timestamp>.zip`, and restores the
-service to its previous running state. Copy that ZIP into the ArrSuite LXC and
-restore it with `arrsuite restore seerr <backup.zip>`.
-
-For a Seerr instance running in Docker, run the backup tool on the Docker host
-and provide the required container name:
-
-```bash
-bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/seerr-backup.sh)" -- --docker seerr /root
-```
-
-Replace `seerr` with the actual container name. Docker mode requires the
-container to be running, stops it, copies `/app/config`, creates the compatible
-ZIP in the selected output directory, and restarts the container. If the
-container uses a nonstandard internal config path, set
-`SEERR_DOCKER_CONFIG_PATH` before running the command.
-
-## Update an existing ArrSuite LXC
-
-Containers with self-update support can refresh the ArrSuite runtime and then
-add another application directly:
-
-```bash
-arrsuite self-update
-arrsuite add lidarr
-```
-
-The standard `update` command attempts the same runtime refresh before updating
-every registered application. ArrSuite updates do not alter application data.
-
-## Console auto-login
-
-When the root password is left blank during LXC creation, the installer explicitly configures both console paths used by Proxmox:
-
-```text
-container-getty@1.service   Proxmox web console (/dev/tty1)
-console-getty.service       pct console / serial console (/dev/console)
-```
-
-ArrSuite reapplies and restarts both getty configurations after the shared
-Community Scripts customization step. This ensures a usable console even when
-the upstream helper does not activate the template's getty service. The
-drop-ins also clear Debian 13's inherited `ImportCredential` directives, which
-can otherwise fail with `243/CREDENTIALS` in an unprivileged LXC.
-
-To repair console auto-login in an existing container, run the published repair
-script as root inside the LXC:
-
-```bash
-curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/fix-console-autologin.sh | bash
-```
-
-From the Proxmox host, `pct enter <CTID>` can be used to enter an existing container without relying on its console login.
-
-## Login banner
-
-ArrSuite replaces the duplicate static and dynamic Community Scripts banners
-with one dynamic login banner. It reads `/opt/arrsuite/installed.apps` whenever
-a shell starts and shows every registered application, its URL and port, and
-its current systemd state. Applications added with `arrsuite add` therefore
-appear on the next login automatically; removing an application from the
-registry removes it from the next banner.
-
-To apply the banner to an existing ArrSuite container, run inside the LXC:
-
-```bash
-curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/arrsuite-motd.sh \
-  -o /etc/profile.d/00_lxc-details.sh
-chmod 0755 /etc/profile.d/00_lxc-details.sh
-: >/etc/motd
-```
-
-## Design
-
-The standard Community Scripts container and installer structure is retained:
-
-1. `ct/arrsuite.sh` creates the LXC and exposes the normal `/usr/bin/update` workflow.
-2. `install/arrsuite-install.sh` performs shared container setup once.
-3. The installer saves the Community Scripts function and tools bundles under `/opt/arrsuite/lib/`.
-4. `/usr/local/bin/arrsuite` sources those helpers when adding or updating an app.
-5. `/opt/arrsuite/installed.apps` is the registry used to decide which apps participate in `update`.
-6. Fresh installs and self-updates consume validated assets from the latest GitHub release.
-7. Sonarr, Radarr, and Lidarr backups use their local APIs; Seerr backups use a validated archive of its persistent config directory.
-
-The Sonarr, Radarr, Lidarr, Prowlarr, Byparr, FlareSolverr, Seerr, and Bazarr modules closely
-follow their existing Community Scripts implementations. In particular, they reuse:
-
-- `fetch_and_deploy_gh_release`
-- `check_for_gh_release`
-- `arch_resolve`
-- `setup_uv`
-- `setup_nodejs`
-- the existing package lists, application paths, data paths, and systemd units
-
-Each application keeps its normal paths, so troubleshooting information from the individual Community Scripts remains useful:
-
-```text
-/opt/Sonarr       /var/lib/sonarr       sonarr.service
-/opt/Radarr       /var/lib/radarr       radarr.service
-/opt/Lidarr       /var/lib/lidarr       lidarr.service
-/opt/Prowlarr     /var/lib/prowlarr     prowlarr.service
-/opt/Byparr                              byparr.service
-/opt/flaresolverr                        flaresolverr.service
-/opt/seerr                               seerr.service
-/opt/bazarr       /var/lib/bazarr       bazarr.service
-```
-
-## Resource defaults
-
-The aggregate defaults are deliberately higher than the individual scripts:
-
-- 2 CPU cores
-- 6144 MB RAM
-- 16 GB disk
-- Debian 13
-- unprivileged LXC
-- nesting disabled (the applications run directly in the LXC without Docker)
-
-Users installing only Sonarr and Radarr can reduce the resources in Advanced
-Settings. For all eight applications, especially with Byparr, FlareSolverr, Seerr, or
-large libraries,
-8 GB RAM and 24–32 GB disk is a more comfortable allocation. Media and download
-storage should be mounted separately from the LXC root disk.
-
-## Local checks
-
-From the root of this package:
+Standalone copies of the embedded manager and login banner live in `tools/`.
+Run the complete local validation suite after every change:
 
 ```bash
 bash tests/static-checks.sh
+git diff --check
 ```
 
-This checks the outer scripts, extracts and checks the embedded `arrsuite` manager, validates the JSON metadata, and runs ShellCheck when it is installed.
+The suite checks Bash syntax, JSON metadata, embedded artifact synchronization,
+manager behavior, and ShellCheck when available.
 
-## Automated validation and releases
+Pushes to `main` that change runtime scripts run automated validation and, when
+successful, publish the next GitHub release with generated notes, checksums,
+and installation assets. Documentation-only changes do not create releases.
+Production installs and self-updates always use the latest successful release.
 
-Every push to `main` runs `.github/workflows/release.yml`. The workflow installs
-ShellCheck, runs the complete static test suite, checks the Git diff, and stops
-if validation fails. Successful validation creates the next release, generates
-change notes, and publishes the bootstrap, installer, manager, banner, console
-repair tool, checksum manifest, and release metadata. Production installs and
-self-updates use the latest successful release rather than unvalidated branch
-content.
+Local checks cannot prove LXC creation, systemd behavior, release downloads, or
+web-interface availability. Test release-affecting changes on a disposable
+Proxmox node before submitting upstream.
 
-A real acceptance test still requires Proxmox because syntax checks cannot validate LXC creation, systemd startup, release asset matching, or application web interfaces.
+### Proxmox test matrix
 
-## Proxmox test matrix
-
-Before submitting upstream, test at least these cases on a disposable Proxmox node:
-
-| Case | Selection | Expected result |
+| Case | Selection or action | Expected result |
 |---|---|---|
-| Fresh amd64 | Sonarr + Radarr | Both services active; ports 8989 and 7878 answer |
-| Fresh amd64 | All eight | All services active; ports 8989, 7878, 8686, 9696, 8191, 8192, 5055, and 6767 answer |
-| Add later | Initially Sonarr, then `arrsuite add radarr` | Existing Sonarr data remains; Radarr is added |
-| Update all | Run `update` after installing all selected apps | ArrSuite refreshes itself and every registered app is checked; one failure does not prevent later apps being attempted |
-| No update | Run `update` twice | Second run reports current releases without replacing data |
-| ARM64 | Sonarr + Radarr + Lidarr + Seerr + Bazarr | All five install; Prowlarr, Byparr, and FlareSolverr selections fail with clear architecture messages |
+| Fresh amd64 | Sonarr + Radarr | Both services active and both web interfaces answer |
+| Fresh amd64 | All applications | All services active and all configured ports answer |
+| Add later | Install Sonarr, then add Radarr | Sonarr data remains and Radarr is registered |
+| Update all | Run `update` with several apps | Runtime and every app are checked; later apps run after a failure |
+| No update | Run `update` twice | Current releases are reported without replacing data |
+| ARM64 | Sonarr + Radarr + Lidarr + Seerr + Bazarr | All install; amd64-only apps show clear architecture errors |
 | Reboot | Reboot the LXC | Every installed service returns active |
-| Blank password | Leave root password blank | Web console and `pct console` auto-login as root |
-| Application restore | Create and restore Sonarr, Radarr, Lidarr, and Seerr backup ZIPs | Safety backup is retained and restored service returns active |
-| Backup restore | Back up and restore the LXC | App configurations and registry remain intact |
+| Blank password | Use both console types | Both consoles auto-login as root |
+| Restore | Restore each supported app | A safety backup remains and the restored service is active |
+| LXC backup | Back up and restore the container | App data and the installed-app registry remain intact |
 
-## Testing from a fork
+### Remaining work before an upstream PR
 
-New scripts currently belong in the `community-scripts/ProxmoxVED` development repository. Create a feature branch in your fork, copy the three upstream files into their matching directories, and adjust the `build.func` source in `ct/arrsuite.sh` to your fork/branch while testing. Run the CT script from the Proxmox host.
+- Confirm that maintainers accept an aggregate script with multiple web ports
+  and a `null` metadata `interface_port`.
+- Confirm the preferred aggregate name and icon.
+- Confirm that persisting the Community Scripts helper bundle is acceptable.
+- Decide whether container-level arm64 support should remain when some optional
+  modules are amd64-only.
+- Test current release asset patterns and all supported modules on Proxmox.
+- Consider displaying a snapshot reminder before multi-application updates.
 
-Suggested branch name:
+### Adding another application
 
-```text
-feat/add-arrsuite
-```
-
-Suggested commit:
-
-```text
-feat: add selectable multi-app ArrSuite container
-```
-
-## Items to resolve before an upstream PR
-
-1. Ask maintainers whether an aggregate script with several web ports is acceptable under one metadata entry. `interface_port` is currently `null` for that reason.
-2. Confirm the preferred aggregate name and icon. The metadata currently uses `ArrSuite` and a proposed Servarr icon URL.
-3. Confirm whether persisting the installer’s Community Scripts function bundle is acceptable. It avoids custom GitHub logic and enables future app additions, but maintainers may prefer a project-provided runtime library or a refresh command.
-4. Decide whether ARM64 should remain enabled for the container even though Prowlarr, Byparr, and FlareSolverr are amd64-only in their current Community Scripts.
-5. Test the current Sonarr, Radarr, and Lidarr release asset patterns against both amd64 and arm64.
-6. Consider a snapshot warning before updating several applications in one operation.
-
-## Adding another application module
-
-A future module should add these pieces to the embedded manager:
-
-1. Add its lowercase name to `SUPPORTED_APPS`.
-2. Add label, description, and port entries.
-3. Add `install_<app>` using the existing Community installer as the source of truth.
-4. Add `update_<app>` using the existing Community CT update function as the source of truth.
-5. Add the application to the two `case` statements.
-6. Test install, add-later, update, reboot, and failure behavior.
-
-Keeping each module close to the corresponding upstream script is more maintainable than inventing one generic installer for applications that only appear similar.
+When adding a module, update every user-facing and runtime surface: supported
+application arrays, labels, descriptions, ports, checklist, help output, login
+banner, completion output, JSON metadata, README, and tests. Add isolated
+install and update functions, service handling, dispatch cases, dependencies,
+data paths, release matching, and architecture behavior based on the current
+individual Community Script.
