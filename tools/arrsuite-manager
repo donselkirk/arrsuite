@@ -1027,7 +1027,9 @@ update_seerr() {
       return 1
     fi
     if ! mv "$stage_dir" /opt/seerr; then
-      [[ -d "$stage_dir/config" && ! -d "$previous_dir/config" ]] && mv "$stage_dir/config" "$previous_dir/config" || true
+      if [[ -d "$stage_dir/config" && ! -d "$previous_dir/config" ]]; then
+        mv "$stage_dir/config" "$previous_dir/config" || true
+      fi
       rm -rf /opt/seerr
       mv "$previous_dir" /opt/seerr
       systemctl start seerr || true
