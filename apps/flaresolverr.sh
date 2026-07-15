@@ -59,23 +59,8 @@ install_flaresolverr() {
 
 update_flaresolverr() {
   if check_for_gh_release "flaresolverr" "FlareSolverr/FlareSolverr"; then
-    msg_info "Stopping FlareSolverr"
-    systemctl stop flaresolverr || return
-    msg_ok "Stopped FlareSolverr"
-
-    rm -rf /opt/flaresolverr
-    fetch_and_deploy_gh_release \
-      "flaresolverr" \
-      "FlareSolverr/FlareSolverr" \
-      "prebuild" \
-      "latest" \
-      "/opt/flaresolverr" \
-      "flaresolverr_linux_x64.tar.gz" || return
-
-    msg_info "Starting FlareSolverr"
-    systemctl start flaresolverr || return
-    msg_ok "Started FlareSolverr"
+    staged_prebuilt_update flaresolverr flaresolverr FlareSolverr/FlareSolverr \
+      /opt/flaresolverr "flaresolverr_linux_x64.tar.gz" || return
     msg_ok "Updated FlareSolverr"
   fi
 }
-

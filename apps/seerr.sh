@@ -24,13 +24,13 @@ EOF_SERVICE
 }
 
 build_seerr() {
-  local pnpm_desired
-  pnpm_desired="$(grep -Po '"pnpm":\s*"\K[^"]+' /opt/seerr/package.json)" || return
+  local app_dir="${1:-/opt/seerr}" pnpm_desired
+  pnpm_desired="$(grep -Po '"pnpm":\s*"\K[^"]+' "${app_dir}/package.json")" || return
   [[ -n "$pnpm_desired" ]] || return 1
   NODE_VERSION="22" NODE_MODULE="pnpm@${pnpm_desired}" setup_nodejs || return
   export CYPRESS_INSTALL_BINARY=0
   export NODE_OPTIONS="--max-old-space-size=3072"
-  cd /opt/seerr
+  cd "$app_dir"
   $STD pnpm install --frozen-lockfile || return
   $STD pnpm build || return
 }
@@ -50,33 +50,42 @@ install_seerr() {
 }
 
 update_seerr() {
-  local config_backup=""
+  local stage_dir=/opt/seerr.arrsuite-new previous_dir=/opt/seerr.arrsuite-previous stage_home=/opt/seerr.arrsuite-home
   if check_for_gh_release "seerr" "seerr-team/seerr"; then
-    msg_info "Stopping Seerr"
-    systemctl stop seerr || return
-    msg_ok "Stopped Seerr"
-
-    if [[ -d /opt/seerr/config ]]; then
-      config_backup="$(mktemp -d)/config"
-      mv /opt/seerr/config "$config_backup" || return
-    fi
-    rm -rf /opt/seerr
-    if ! fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest"; then
-      if [[ -n "$config_backup" ]]; then
-        install -d /opt/seerr
-        mv "$config_backup" /opt/seerr/config
-      fi
+    rm -rf "$stage_dir" "$stage_home"
+    install -d -m 0700 "$stage_home"
+    HOME="$stage_home" fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest" "$stage_dir" \
+      || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    build_seerr "$stage_dir" || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    systemctl stop seerr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    rm -rf "$previous_dir"
+    mv /opt/seerr "$previous_dir" || { rm -rf "$stage_dir"; systemctl start seerr || true; return 1; }
+    if [[ -d "$previous_dir/config" ]] && ! mv "$previous_dir/config" "$stage_dir/config"; then
+      mv "$previous_dir" /opt/seerr
+      systemctl start seerr || true
+      rm -rf "$stage_dir" "$stage_home"
       return 1
     fi
-    if [[ -n "$config_backup" ]]; then
-      mv "$config_backup" /opt/seerr/config || return
+    if ! mv "$stage_dir" /opt/seerr; then
+      [[ -d "$stage_dir/config" && ! -d "$previous_dir/config" ]] && mv "$stage_dir/config" "$previous_dir/config" || true
+      rm -rf /opt/seerr
+      mv "$previous_dir" /opt/seerr
+      systemctl start seerr || true
+      rm -rf "$stage_dir" "$stage_home"
+      return 1
     fi
-    build_seerr || return
-
-    msg_info "Starting Seerr"
-    systemctl start seerr || return
-    msg_ok "Started Seerr"
+    if ! systemctl start seerr || ! systemctl is-active --quiet seerr; then
+      systemctl stop seerr || true
+      [[ -d /opt/seerr/config ]] && mv /opt/seerr/config "$previous_dir/config"
+      rm -rf /opt/seerr
+      mv "$previous_dir" /opt/seerr
+      systemctl start seerr || true
+      rm -rf "$stage_home"
+      return 1
+    fi
+    [[ -f "$stage_home/.seerr" ]] && install -m 0644 "$stage_home/.seerr" "$HOME/.seerr"
+    rm -rf "$stage_home"
+    rm -rf "$previous_dir"
     msg_ok "Updated Seerr"
   fi
 }
-

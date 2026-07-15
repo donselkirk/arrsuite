@@ -41,23 +41,8 @@ install_lidarr() {
 
 update_lidarr() {
   if check_for_gh_release "lidarr" "Lidarr/Lidarr"; then
-    msg_info "Stopping Lidarr"
-    systemctl stop lidarr || return
-    msg_ok "Stopped Lidarr"
-
-    fetch_and_deploy_gh_release \
-      "lidarr" \
-      "Lidarr/Lidarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Lidarr" \
-      "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" || return
-    chmod 775 /opt/Lidarr
-
-    msg_info "Starting Lidarr"
-    systemctl start lidarr || return
-    msg_ok "Started Lidarr"
+    staged_prebuilt_update lidarr lidarr Lidarr/Lidarr /opt/Lidarr \
+      "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Lidarr"
   fi
 }
-

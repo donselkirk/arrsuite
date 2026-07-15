@@ -86,6 +86,16 @@ PYTHON
   */arrsuite-motd.sh) source_file="${PROJECT_ROOT}/tools/arrsuite-motd.sh" ;;
   */fix-console-autologin.sh) source_file="${PROJECT_ROOT}/tools/fix-console-autologin.sh" ;;
   */VERSION) printf 'v9.8.7\n' >"$output"; exit 0 ;;
+  */SHA256SUMS)
+    version_file="$(mktemp)"
+    printf 'v9.8.7\n' >"$version_file"
+    printf '%s  arrsuite-manager\n' "$(sha256sum "${PROJECT_ROOT}/tools/arrsuite-manager" | awk '{print $1}')" >"$output"
+    printf '%s  arrsuite-motd.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/arrsuite-motd.sh" | awk '{print $1}')" >>"$output"
+    printf '%s  fix-console-autologin.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/fix-console-autologin.sh" | awk '{print $1}')" >>"$output"
+    printf '%s  VERSION\n' "$(sha256sum "$version_file" | awk '{print $1}')" >>"$output"
+    rm -f "$version_file"
+    exit 0
+    ;;
   */misc/install.func) source_file="${TEST_ROOT}/lib/community-functions.sh" ;;
   */misc/tools.func) source_file="${TEST_ROOT}/lib/community-tools.sh" ;;
   *) exit 22 ;;
@@ -133,7 +143,7 @@ run_manager() {
     ARRSUITE_FUNCTIONS_LIBRARY="$test_root/lib/community-functions.sh" \
     ARRSUITE_TOOLS_LIBRARY="$test_root/lib/community-tools.sh" \
     ARRSUITE_LOCK_FILE="$test_root/run/arrsuite.lock" \
-    ARRSUITE_MANAGER_PATH="$test_root/runtime/arrsuite" \
+    ARRSUITE_MANAGER_PATH="${ARRSUITE_TEST_MANAGER_PATH:-$test_root/runtime/arrsuite}" \
     ARRSUITE_MOTD_PATH="$test_root/runtime/arrsuite-motd.sh" \
     ARRSUITE_REPAIR_PATH="$test_root/runtime/fix-console-autologin.sh" \
     ARRSUITE_APP_DATA_ROOT="$test_root/app-data" \
@@ -279,10 +289,25 @@ self_update_output="$(run_manager self-update)"
 grep -q 'Updated ArrSuite Runtime to v9.8.7' <<<"$self_update_output"
 current_output="$(run_manager self-update)"
 grep -q 'ArrSuite Runtime is Already Current at v9.8.7' <<<"$current_output"
+export ARRSUITE_TEST_MANAGER_PATH=/proc/1/arrsuite-test-unwritable
+if failed_update_output="$(run_manager self-update 2>&1)"; then
+  echo "A failed runtime file installation unexpectedly succeeded." >&2
+  exit 1
+fi
+unset ARRSUITE_TEST_MANAGER_PATH
+if grep -q 'Already Current\|Updated ArrSuite Runtime' <<<"$failed_update_output"; then
+  echo "A failed self-update reported success." >&2
+  exit 1
+fi
 cmp -s "$manager" "$test_root/runtime/arrsuite"
 cmp -s "$project_root/tools/arrsuite-motd.sh" "$test_root/runtime/arrsuite-motd.sh"
 cmp -s "$project_root/tools/fix-console-autologin.sh" "$test_root/runtime/fix-console-autologin.sh"
 grep -qx 'v9.8.7' "$test_root/version"
 grep -q 'ArrSuite v9.8.7' < <(run_manager version)
+
+if run_manager list unexpected; then
+  echo "A command with unexpected arguments succeeded." >&2
+  exit 1
+fi
 
 printf 'Manager behavior checks passed.\n'

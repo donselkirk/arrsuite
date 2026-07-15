@@ -82,32 +82,29 @@ install_byparr() {
 }
 
 update_byparr() {
+  local stage_dir=/opt/Byparr.arrsuite-new previous_dir=/opt/Byparr.arrsuite-previous stage_home=/opt/Byparr.arrsuite-home
   if check_for_gh_release "Byparr" "ThePhaseless/Byparr"; then
-    msg_info "Stopping Byparr"
-    systemctl stop byparr || return
-    msg_ok "Stopped Byparr"
-
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release \
-      "Byparr" \
-      "ThePhaseless/Byparr" \
-      "tarball" \
-      "latest" || return
-
     if ! dpkg -l | grep -q ffmpeg; then
       install_byparr_dependencies || return
     fi
-
     setup_uv || return
-    msg_info "Configuring Byparr"
-    cd /opt/Byparr
+    rm -rf "$stage_dir" "$stage_home"
+    install -d -m 0700 "$stage_home"
+    HOME="$stage_home" fetch_and_deploy_gh_release Byparr ThePhaseless/Byparr tarball latest "$stage_dir" \
+      || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    cd "$stage_dir"
     $STD uv sync --link-mode copy || return
     $STD uv run camoufox fetch || return
-    msg_ok "Configured Byparr"
-
-    msg_info "Starting Byparr"
-    systemctl start byparr || return
-    msg_ok "Started Byparr"
+    systemctl stop byparr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    rm -rf "$previous_dir"
+    mv /opt/Byparr "$previous_dir" || return
+    mv "$stage_dir" /opt/Byparr || { mv "$previous_dir" /opt/Byparr; systemctl start byparr || true; return 1; }
+    if ! systemctl start byparr || ! systemctl is-active --quiet byparr; then
+      systemctl stop byparr || true; rm -rf /opt/Byparr; mv "$previous_dir" /opt/Byparr; systemctl start byparr || true
+      rm -rf "$stage_home"; return 1
+    fi
+    [[ -f "$stage_home/.byparr" ]] && install -m 0644 "$stage_home/.byparr" "$HOME/.byparr"
+    rm -rf "$previous_dir" "$stage_home"
     msg_ok "Updated Byparr"
   fi
 }
-

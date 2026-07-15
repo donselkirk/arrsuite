@@ -32,8 +32,14 @@ optional and unchecked. LXC nesting must default to disabled.
   validate that the app is supported and installed before acting. Missing apps
   must fail cleanly and show `arrsuite add <app>` when installation is possible.
 - Expected CLI validation failures must not emit stack-style `in line ...`
-  diagnostics. Keep the manager's top-level status capture so deliberate
-  nonzero results exit intentionally rather than reaching `catch_errors`.
+  diagnostics. Clear the inherited `ERR` trap before `main`, but retain
+  `errexit`; do not invoke `main` in an OR-list because Bash would disable
+  `errexit` throughout nested manager functions.
+- Prebuilt application updates must stage and validate the new release before
+  stopping the service. Keep the previous program directory until the updated
+  service is active, and restore it when deployment or startup fails.
+- Self-update must verify downloaded runtime assets against the release's
+  `SHA256SUMS` before installing them.
 - `/usr/bin/update` must attempt an ArrSuite self-update and then update every
   installed application. A self-update network failure must not prevent
   application updates.

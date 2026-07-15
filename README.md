@@ -122,6 +122,11 @@ Application data is preserved during updates. If one application update fails,
 ArrSuite continues with the remaining applications and returns a failure when
 the run is complete.
 
+ArrSuite verifies self-update files against the checksum manifest from the
+selected release. Prebuilt application updates are staged before services are
+stopped, and the previous program directory is restored if the new service
+does not start successfully.
+
 ### Restart applications
 
 ```bash

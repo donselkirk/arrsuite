@@ -18,6 +18,8 @@ jobs:
       - name: Compare tracked Community Scripts sources
         id: upstream
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash tools/check-upstream.sh
 
       - name: Add report to workflow summary

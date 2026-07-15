@@ -46,24 +46,8 @@ install_prowlarr() {
 
 update_prowlarr() {
   if check_for_gh_release "prowlarr" "Prowlarr/Prowlarr"; then
-    msg_info "Stopping Prowlarr"
-    systemctl stop prowlarr || return
-    msg_ok "Stopped Prowlarr"
-
-    rm -rf /opt/Prowlarr
-    fetch_and_deploy_gh_release \
-      "prowlarr" \
-      "Prowlarr/Prowlarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Prowlarr" \
-      "Prowlarr.master*linux-core-x64.tar.gz" || return
-    chmod 775 /opt/Prowlarr
-
-    msg_info "Starting Prowlarr"
-    systemctl start prowlarr || return
-    msg_ok "Started Prowlarr"
+    staged_prebuilt_update prowlarr prowlarr Prowlarr/Prowlarr /opt/Prowlarr \
+      "Prowlarr.master*linux-core-x64.tar.gz" 0775 || return
     msg_ok "Updated Prowlarr"
   fi
 }
-

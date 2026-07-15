@@ -41,24 +41,8 @@ install_radarr() {
 
 update_radarr() {
   if check_for_gh_release "Radarr" "Radarr/Radarr"; then
-    msg_info "Stopping Radarr"
-    systemctl stop radarr || return
-    msg_ok "Stopped Radarr"
-
-    rm -rf /opt/Radarr
-    fetch_and_deploy_gh_release \
-      "Radarr" \
-      "Radarr/Radarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Radarr" \
-      "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" || return
-    chmod 775 /opt/Radarr
-
-    msg_info "Starting Radarr"
-    systemctl start radarr || return
-    msg_ok "Started Radarr"
+    staged_prebuilt_update radarr Radarr Radarr/Radarr /opt/Radarr \
+      "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Radarr"
   fi
 }
-

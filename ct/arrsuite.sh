@@ -36,7 +36,7 @@ function update_script() {
 
   if [[ ! -x /usr/local/bin/arrsuite ]]; then
     msg_error "No ${APP} installation found!"
-    exit
+    exit 1
   fi
 
   /usr/local/bin/arrsuite update

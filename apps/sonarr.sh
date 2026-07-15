@@ -40,22 +40,8 @@ install_sonarr() {
 
 update_sonarr() {
   if check_for_gh_release "Sonarr" "Sonarr/Sonarr"; then
-    msg_info "Stopping Sonarr"
-    systemctl stop sonarr || return
-    msg_ok "Stopped Sonarr"
-
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release \
-      "Sonarr" \
-      "Sonarr/Sonarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Sonarr" \
+    staged_prebuilt_update sonarr Sonarr Sonarr/Sonarr /opt/Sonarr \
       "Sonarr.main.*.linux-$(arch_resolve "x64" "arm64").tar.gz" || return
-
-    msg_info "Starting Sonarr"
-    systemctl start sonarr || return
-    msg_ok "Started Sonarr"
     msg_ok "Updated Sonarr"
   fi
 }
-

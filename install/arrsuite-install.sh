@@ -139,7 +139,7 @@ chmod 0644 /opt/arrsuite/installed.apps
 
 cat > /usr/local/bin/arrsuite <<'EOF_MANAGER'
 #!/usr/bin/env bash
-set -Euo pipefail
+set -Eeuo pipefail
 
 export APP="ArrSuite"
 export NSAPP="arrsuite"
@@ -469,12 +469,11 @@ PYTHON
     return 1
   fi
 
+  mv "$temp_archive" "$archive"
   if ((was_active)) && ! systemctl start seerr; then
-    rm -f "$temp_archive"
-    msg_error "Backup created, but Seerr failed to restart"
+    msg_error "Backup was saved to ${archive}, but Seerr failed to restart"
     return 1
   fi
-  mv "$temp_archive" "$archive"
   msg_ok "Created Seerr backup: ${archive}"
 }
 
@@ -497,7 +496,12 @@ try:
         names = {item.filename for item in archive.infolist()}
         if "config/db/db.sqlite3" not in names:
             raise ValueError("SQLite database is missing")
-        for item in archive.infolist():
+        items = archive.infolist()
+        if len(items) > 10000 or sum(item.file_size for item in items) > 10 * 1024**3:
+            raise ValueError("archive exceeds restore safety limits")
+        for item in items:
+            if item.file_size > 2 * 1024**3:
+                raise ValueError("archive member exceeds restore safety limit")
             path = pathlib.PurePosixPath(item.filename)
             if path.is_absolute() or ".." in path.parts or "\\" in item.filename:
                 raise ValueError("unsafe archive path")
@@ -573,7 +577,7 @@ restore_native_backup() {
     return 2
   }
   validate_backup_zip "$backup_file" "$app" || {
-    msg_error "The selected file is not a valid Sonarr or Radarr native backup ZIP"
+    msg_error "The selected file is not a valid ${APP_LABEL[$app]} native backup ZIP"
     return 2
   }
   systemctl is-active --quiet "$app" || {
@@ -627,8 +631,7 @@ restore_seerr_backup() {
     rm -rf "$stage_dir"
     return 1
   fi
-  rollback_dir="${config_dir}.arrsuite-rollback"
-  rm -rf "$rollback_dir"
+  rollback_dir="${config_dir}.arrsuite-rollback.$(date +%s).$$"
 
   msg_info "Restoring Seerr from ${backup_file}"
   systemctl stop seerr || {
@@ -643,7 +646,11 @@ restore_seerr_backup() {
   if ! mv "$stage_dir/config" "$config_dir" || ! systemctl start seerr || ! systemctl is-active --quiet seerr; then
     systemctl stop seerr || true
     rm -rf "$config_dir"
-    mv "$rollback_dir" "$config_dir"
+    if ! mv "$rollback_dir" "$config_dir"; then
+      msg_error "Seerr restore and automatic rollback both failed; recovery data remains at ${rollback_dir}"
+      rm -rf "$stage_dir"
+      return 1
+    fi
     systemctl start seerr || true
     rm -rf "$stage_dir"
     msg_error "Seerr restore failed; the previous config was restored"
@@ -671,6 +678,39 @@ acquire_lock() {
     msg_error "Another ArrSuite operation is already running."
     exit 1
   }
+}
+
+staged_prebuilt_update() {
+  local service="$1" label="$2" repository="$3" app_dir="$4" asset="$5" mode="${6:-0755}"
+  local stage_dir="${app_dir}.arrsuite-new" previous_dir="${app_dir}.arrsuite-previous"
+  local stage_home="${app_dir}.arrsuite-home" marker_name
+  marker_name="$(printf '%s' "${label,,}" | tr -d ' ')"
+
+  rm -rf "$stage_dir" "$stage_home"
+  install -d -m 0700 "$stage_home"
+  HOME="$stage_home" fetch_and_deploy_gh_release "$label" "$repository" "prebuild" "latest" "$stage_dir" "$asset" || {
+    rm -rf "$stage_dir" "$stage_home"
+    return 1
+  }
+  chmod "$mode" "$stage_dir" || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+
+  systemctl stop "$service" || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+  rm -rf "$previous_dir"
+  mv "$app_dir" "$previous_dir" || { rm -rf "$stage_dir" "$stage_home"; systemctl start "$service" || true; return 1; }
+  if ! mv "$stage_dir" "$app_dir" || ! systemctl start "$service" || ! systemctl is-active --quiet "$service"; then
+    systemctl stop "$service" || true
+    rm -rf "$app_dir"
+    if mv "$previous_dir" "$app_dir"; then
+      systemctl start "$service" || true
+    else
+      msg_error "${label} update rollback failed; previous files remain at ${previous_dir}"
+    fi
+    rm -rf "$stage_home"
+    return 1
+  fi
+  [[ -f "${stage_home}/.${marker_name}" ]] && install -m 0644 "${stage_home}/.${marker_name}" "${HOME}/.${marker_name}"
+  rm -rf "$stage_home"
+  rm -rf "$previous_dir"
 }
 
 # Generated from apps/sonarr.sh. Do not edit this block directly.
@@ -716,21 +756,8 @@ install_sonarr() {
 
 update_sonarr() {
   if check_for_gh_release "Sonarr" "Sonarr/Sonarr"; then
-    msg_info "Stopping Sonarr"
-    systemctl stop sonarr || return
-    msg_ok "Stopped Sonarr"
-
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release \
-      "Sonarr" \
-      "Sonarr/Sonarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Sonarr" \
+    staged_prebuilt_update sonarr Sonarr Sonarr/Sonarr /opt/Sonarr \
       "Sonarr.main.*.linux-$(arch_resolve "x64" "arm64").tar.gz" || return
-
-    msg_info "Starting Sonarr"
-    systemctl start sonarr || return
-    msg_ok "Started Sonarr"
     msg_ok "Updated Sonarr"
   fi
 }
@@ -779,23 +806,8 @@ install_radarr() {
 
 update_radarr() {
   if check_for_gh_release "Radarr" "Radarr/Radarr"; then
-    msg_info "Stopping Radarr"
-    systemctl stop radarr || return
-    msg_ok "Stopped Radarr"
-
-    rm -rf /opt/Radarr
-    fetch_and_deploy_gh_release \
-      "Radarr" \
-      "Radarr/Radarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Radarr" \
-      "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" || return
-    chmod 775 /opt/Radarr
-
-    msg_info "Starting Radarr"
-    systemctl start radarr || return
-    msg_ok "Started Radarr"
+    staged_prebuilt_update radarr Radarr Radarr/Radarr /opt/Radarr \
+      "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Radarr"
   fi
 }
@@ -844,22 +856,8 @@ install_lidarr() {
 
 update_lidarr() {
   if check_for_gh_release "lidarr" "Lidarr/Lidarr"; then
-    msg_info "Stopping Lidarr"
-    systemctl stop lidarr || return
-    msg_ok "Stopped Lidarr"
-
-    fetch_and_deploy_gh_release \
-      "lidarr" \
-      "Lidarr/Lidarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Lidarr" \
-      "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" || return
-    chmod 775 /opt/Lidarr
-
-    msg_info "Starting Lidarr"
-    systemctl start lidarr || return
-    msg_ok "Started Lidarr"
+    staged_prebuilt_update lidarr lidarr Lidarr/Lidarr /opt/Lidarr \
+      "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Lidarr"
   fi
 }
@@ -913,23 +911,8 @@ install_prowlarr() {
 
 update_prowlarr() {
   if check_for_gh_release "prowlarr" "Prowlarr/Prowlarr"; then
-    msg_info "Stopping Prowlarr"
-    systemctl stop prowlarr || return
-    msg_ok "Stopped Prowlarr"
-
-    rm -rf /opt/Prowlarr
-    fetch_and_deploy_gh_release \
-      "prowlarr" \
-      "Prowlarr/Prowlarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/Prowlarr" \
-      "Prowlarr.master*linux-core-x64.tar.gz" || return
-    chmod 775 /opt/Prowlarr
-
-    msg_info "Starting Prowlarr"
-    systemctl start prowlarr || return
-    msg_ok "Started Prowlarr"
+    staged_prebuilt_update prowlarr prowlarr Prowlarr/Prowlarr /opt/Prowlarr \
+      "Prowlarr.master*linux-core-x64.tar.gz" 0775 || return
     msg_ok "Updated Prowlarr"
   fi
 }
@@ -1019,31 +1002,29 @@ install_byparr() {
 }
 
 update_byparr() {
+  local stage_dir=/opt/Byparr.arrsuite-new previous_dir=/opt/Byparr.arrsuite-previous stage_home=/opt/Byparr.arrsuite-home
   if check_for_gh_release "Byparr" "ThePhaseless/Byparr"; then
-    msg_info "Stopping Byparr"
-    systemctl stop byparr || return
-    msg_ok "Stopped Byparr"
-
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release \
-      "Byparr" \
-      "ThePhaseless/Byparr" \
-      "tarball" \
-      "latest" || return
-
     if ! dpkg -l | grep -q ffmpeg; then
       install_byparr_dependencies || return
     fi
-
     setup_uv || return
-    msg_info "Configuring Byparr"
-    cd /opt/Byparr
+    rm -rf "$stage_dir" "$stage_home"
+    install -d -m 0700 "$stage_home"
+    HOME="$stage_home" fetch_and_deploy_gh_release Byparr ThePhaseless/Byparr tarball latest "$stage_dir" \
+      || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    cd "$stage_dir"
     $STD uv sync --link-mode copy || return
     $STD uv run camoufox fetch || return
-    msg_ok "Configured Byparr"
-
-    msg_info "Starting Byparr"
-    systemctl start byparr || return
-    msg_ok "Started Byparr"
+    systemctl stop byparr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    rm -rf "$previous_dir"
+    mv /opt/Byparr "$previous_dir" || return
+    mv "$stage_dir" /opt/Byparr || { mv "$previous_dir" /opt/Byparr; systemctl start byparr || true; return 1; }
+    if ! systemctl start byparr || ! systemctl is-active --quiet byparr; then
+      systemctl stop byparr || true; rm -rf /opt/Byparr; mv "$previous_dir" /opt/Byparr; systemctl start byparr || true
+      rm -rf "$stage_home"; return 1
+    fi
+    [[ -f "$stage_home/.byparr" ]] && install -m 0644 "$stage_home/.byparr" "$HOME/.byparr"
+    rm -rf "$previous_dir" "$stage_home"
     msg_ok "Updated Byparr"
   fi
 }
@@ -1110,22 +1091,8 @@ install_flaresolverr() {
 
 update_flaresolverr() {
   if check_for_gh_release "flaresolverr" "FlareSolverr/FlareSolverr"; then
-    msg_info "Stopping FlareSolverr"
-    systemctl stop flaresolverr || return
-    msg_ok "Stopped FlareSolverr"
-
-    rm -rf /opt/flaresolverr
-    fetch_and_deploy_gh_release \
-      "flaresolverr" \
-      "FlareSolverr/FlareSolverr" \
-      "prebuild" \
-      "latest" \
-      "/opt/flaresolverr" \
-      "flaresolverr_linux_x64.tar.gz" || return
-
-    msg_info "Starting FlareSolverr"
-    systemctl start flaresolverr || return
-    msg_ok "Started FlareSolverr"
+    staged_prebuilt_update flaresolverr flaresolverr FlareSolverr/FlareSolverr \
+      /opt/flaresolverr "flaresolverr_linux_x64.tar.gz" || return
     msg_ok "Updated FlareSolverr"
   fi
 }
@@ -1157,13 +1124,13 @@ EOF_SERVICE
 }
 
 build_seerr() {
-  local pnpm_desired
-  pnpm_desired="$(grep -Po '"pnpm":\s*"\K[^"]+' /opt/seerr/package.json)" || return
+  local app_dir="${1:-/opt/seerr}" pnpm_desired
+  pnpm_desired="$(grep -Po '"pnpm":\s*"\K[^"]+' "${app_dir}/package.json")" || return
   [[ -n "$pnpm_desired" ]] || return 1
   NODE_VERSION="22" NODE_MODULE="pnpm@${pnpm_desired}" setup_nodejs || return
   export CYPRESS_INSTALL_BINARY=0
   export NODE_OPTIONS="--max-old-space-size=3072"
-  cd /opt/seerr
+  cd "$app_dir"
   $STD pnpm install --frozen-lockfile || return
   $STD pnpm build || return
 }
@@ -1183,32 +1150,42 @@ install_seerr() {
 }
 
 update_seerr() {
-  local config_backup=""
+  local stage_dir=/opt/seerr.arrsuite-new previous_dir=/opt/seerr.arrsuite-previous stage_home=/opt/seerr.arrsuite-home
   if check_for_gh_release "seerr" "seerr-team/seerr"; then
-    msg_info "Stopping Seerr"
-    systemctl stop seerr || return
-    msg_ok "Stopped Seerr"
-
-    if [[ -d /opt/seerr/config ]]; then
-      config_backup="$(mktemp -d)/config"
-      mv /opt/seerr/config "$config_backup" || return
-    fi
-    rm -rf /opt/seerr
-    if ! fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest"; then
-      if [[ -n "$config_backup" ]]; then
-        install -d /opt/seerr
-        mv "$config_backup" /opt/seerr/config
-      fi
+    rm -rf "$stage_dir" "$stage_home"
+    install -d -m 0700 "$stage_home"
+    HOME="$stage_home" fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest" "$stage_dir" \
+      || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    build_seerr "$stage_dir" || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    systemctl stop seerr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    rm -rf "$previous_dir"
+    mv /opt/seerr "$previous_dir" || { rm -rf "$stage_dir"; systemctl start seerr || true; return 1; }
+    if [[ -d "$previous_dir/config" ]] && ! mv "$previous_dir/config" "$stage_dir/config"; then
+      mv "$previous_dir" /opt/seerr
+      systemctl start seerr || true
+      rm -rf "$stage_dir" "$stage_home"
       return 1
     fi
-    if [[ -n "$config_backup" ]]; then
-      mv "$config_backup" /opt/seerr/config || return
+    if ! mv "$stage_dir" /opt/seerr; then
+      [[ -d "$stage_dir/config" && ! -d "$previous_dir/config" ]] && mv "$stage_dir/config" "$previous_dir/config" || true
+      rm -rf /opt/seerr
+      mv "$previous_dir" /opt/seerr
+      systemctl start seerr || true
+      rm -rf "$stage_dir" "$stage_home"
+      return 1
     fi
-    build_seerr || return
-
-    msg_info "Starting Seerr"
-    systemctl start seerr || return
-    msg_ok "Started Seerr"
+    if ! systemctl start seerr || ! systemctl is-active --quiet seerr; then
+      systemctl stop seerr || true
+      [[ -d /opt/seerr/config ]] && mv /opt/seerr/config "$previous_dir/config"
+      rm -rf /opt/seerr
+      mv "$previous_dir" /opt/seerr
+      systemctl start seerr || true
+      rm -rf "$stage_home"
+      return 1
+    fi
+    [[ -f "$stage_home/.seerr" ]] && install -m 0644 "$stage_home/.seerr" "$HOME/.seerr"
+    rm -rf "$stage_home"
+    rm -rf "$previous_dir"
     msg_ok "Updated Seerr"
   fi
 }
@@ -1237,11 +1214,12 @@ EOF_SERVICE
 }
 
 configure_bazarr() {
+  local app_dir="${1:-/opt/bazarr}"
   install -d -m 0775 /var/lib/bazarr
-  chmod 0775 /opt/bazarr
-  sed -i.bak 's/--only-binary=Pillow//g' /opt/bazarr/requirements.txt
-  $STD uv venv --clear /opt/bazarr/venv --python 3.12 || return
-  $STD uv pip install -r /opt/bazarr/requirements.txt --python /opt/bazarr/venv/bin/python3 || return
+  chmod 0775 "$app_dir"
+  sed -i.bak 's/--only-binary=Pillow//g' "${app_dir}/requirements.txt"
+  $STD uv venv --clear "${app_dir}/venv" --python 3.12 || return
+  $STD uv pip install -r "${app_dir}/requirements.txt" --python "${app_dir}/venv/bin/python3" || return
 }
 
 install_bazarr() {
@@ -1265,24 +1243,24 @@ install_bazarr() {
 }
 
 update_bazarr() {
+  local stage_dir=/opt/bazarr.arrsuite-new previous_dir=/opt/bazarr.arrsuite-previous stage_home=/opt/bazarr.arrsuite-home
   if check_for_gh_release "bazarr" "morpheus65535/bazarr"; then
-    msg_info "Stopping Bazarr"
-    systemctl stop bazarr || return
-    msg_ok "Stopped Bazarr"
-
+    rm -rf "$stage_dir" "$stage_home"
+    install -d -m 0700 "$stage_home"
     PYTHON_VERSION="3.12" setup_uv || return
-    fetch_and_deploy_gh_release \
-      "bazarr" \
-      "morpheus65535/bazarr" \
-      "prebuild" \
-      "latest" \
-      "/opt/bazarr" \
-      "bazarr.zip" || return
-    configure_bazarr || return
-
-    msg_info "Starting Bazarr"
-    systemctl start bazarr || return
-    msg_ok "Started Bazarr"
+    HOME="$stage_home" fetch_and_deploy_gh_release bazarr morpheus65535/bazarr prebuild latest "$stage_dir" bazarr.zip \
+      || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    configure_bazarr "$stage_dir" || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    systemctl stop bazarr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    rm -rf "$previous_dir"
+    mv /opt/bazarr "$previous_dir" || return
+    mv "$stage_dir" /opt/bazarr || { mv "$previous_dir" /opt/bazarr; systemctl start bazarr || true; return 1; }
+    if ! systemctl start bazarr || ! systemctl is-active --quiet bazarr; then
+      systemctl stop bazarr || true; rm -rf /opt/bazarr; mv "$previous_dir" /opt/bazarr; systemctl start bazarr || true
+      rm -rf "$stage_home"; return 1
+    fi
+    [[ -f "$stage_home/.bazarr" ]] && install -m 0644 "$stage_home/.bazarr" "$HOME/.bazarr"
+    rm -rf "$previous_dir" "$stage_home"
     msg_ok "Updated Bazarr"
   fi
 }
@@ -1481,7 +1459,7 @@ restart_apps() {
 }
 
 self_update() {
-  local update_url community_url temp_dir release_version changed=0
+  local update_url community_url temp_dir release_version runtime_file backup_file changed=0
   update_url="${ARRSUITE_UPDATE_BASE_URL:-}"
   if [[ -z "$update_url" && -r "$UPDATE_URL_FILE" ]]; then
     update_url="$(<"$UPDATE_URL_FILE")"
@@ -1496,6 +1474,7 @@ self_update() {
     || ! curl -fsSL "${update_url}/arrsuite-motd.sh" -o "${temp_dir}/arrsuite-motd.sh" \
     || ! curl -fsSL "${update_url}/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh" \
     || ! curl -fsSL "${update_url}/VERSION" -o "${temp_dir}/VERSION" \
+    || ! curl -fsSL "${update_url}/SHA256SUMS" -o "${temp_dir}/SHA256SUMS" \
     || ! curl -fsSL "${community_url}/misc/install.func" -o "${temp_dir}/community-functions.sh" \
     || ! curl -fsSL "${community_url}/misc/tools.func" -o "${temp_dir}/community-tools.sh"; then
     rm -rf "$temp_dir"
@@ -1503,7 +1482,12 @@ self_update() {
     return 1
   fi
 
-  if ! bash -n "${temp_dir}/arrsuite" \
+  if ! (cd "$temp_dir" && sha256sum -c --ignore-missing SHA256SUMS >/dev/null \
+      && grep -q ' arrsuite-manager$' SHA256SUMS \
+      && grep -q ' arrsuite-motd.sh$' SHA256SUMS \
+      && grep -q ' fix-console-autologin.sh$' SHA256SUMS \
+      && grep -q ' VERSION$' SHA256SUMS) \
+    || ! bash -n "${temp_dir}/arrsuite" \
     || ! bash -n "${temp_dir}/arrsuite-motd.sh" \
     || ! bash -n "${temp_dir}/fix-console-autologin.sh" \
     || ! grep -q '^fetch_and_deploy_gh_release()' "${temp_dir}/community-tools.sh" \
@@ -1516,13 +1500,25 @@ self_update() {
 
   msg_info "Updating ArrSuite Runtime"
   cmp -s "${temp_dir}/arrsuite" "$MANAGER_PATH" || changed=1
-  install -m 0755 "${temp_dir}/arrsuite" "$MANAGER_PATH"
-  install -m 0755 "${temp_dir}/arrsuite-motd.sh" "$MOTD_PATH"
-  install -m 0755 "${temp_dir}/fix-console-autologin.sh" "$REPAIR_PATH"
-  install -m 0644 "${temp_dir}/community-functions.sh" "$FUNCTIONS_LIBRARY"
-  install -m 0644 "${temp_dir}/community-tools.sh" "$TOOLS_LIBRARY"
-  install -m 0644 "${temp_dir}/VERSION" "$VERSION_FILE"
-  printf '%s\n' "$update_url" >"$UPDATE_URL_FILE"
+  install -d -m 0700 "${temp_dir}/previous"
+  for runtime_file in "$MANAGER_PATH" "$MOTD_PATH" "$REPAIR_PATH" "$FUNCTIONS_LIBRARY" "$TOOLS_LIBRARY" "$VERSION_FILE" "$UPDATE_URL_FILE"; do
+    [[ ! -e "$runtime_file" ]] || cp -a "$runtime_file" "${temp_dir}/previous/$(basename "$runtime_file")"
+  done
+  if ! install -m 0755 "${temp_dir}/arrsuite" "$MANAGER_PATH" \
+    || ! install -m 0755 "${temp_dir}/arrsuite-motd.sh" "$MOTD_PATH" \
+    || ! install -m 0755 "${temp_dir}/fix-console-autologin.sh" "$REPAIR_PATH" \
+    || ! install -m 0644 "${temp_dir}/community-functions.sh" "$FUNCTIONS_LIBRARY" \
+    || ! install -m 0644 "${temp_dir}/community-tools.sh" "$TOOLS_LIBRARY" \
+    || ! install -m 0644 "${temp_dir}/VERSION" "$VERSION_FILE" \
+    || ! printf '%s\n' "$update_url" >"$UPDATE_URL_FILE"; then
+    for runtime_file in "$MANAGER_PATH" "$MOTD_PATH" "$REPAIR_PATH" "$FUNCTIONS_LIBRARY" "$TOOLS_LIBRARY" "$VERSION_FILE" "$UPDATE_URL_FILE"; do
+      backup_file="${temp_dir}/previous/$(basename "$runtime_file")"
+      [[ ! -e "$backup_file" ]] || cp -a "$backup_file" "$runtime_file" || true
+    done
+    rm -rf "$temp_dir"
+    msg_error "Failed to install ArrSuite update files; previous runtime restored"
+    return 1
+  fi
   rm -rf "$temp_dir"
 
   if ((changed)); then
@@ -1637,10 +1633,12 @@ main() {
       restart_apps "$@"
       ;;
     self-update)
+      (($# == 1)) || { msg_error "Usage: arrsuite self-update"; exit 2; }
       acquire_lock
       self_update
       ;;
     version|--version|-V)
+      (($# == 1)) || { msg_error "Usage: arrsuite version"; exit 2; }
       show_version
       ;;
     backup)
@@ -1658,6 +1656,7 @@ main() {
       restore_backup "$1" "$2"
       ;;
     list)
+      (($# == 1)) || { msg_error "Usage: arrsuite list"; exit 2; }
       show_list
       ;;
     status)
@@ -1665,6 +1664,7 @@ main() {
       show_status "$@"
       ;;
     help|-h|--help)
+      (($# == 1)) || { msg_error "Usage: arrsuite help"; exit 2; }
       show_help
       ;;
     *)
@@ -1676,9 +1676,11 @@ main() {
   esac
 }
 
-manager_status=0
-main "$@" || manager_status=$?
-exit "$manager_status"
+# The Community Scripts helper installs a global ERR trap. User-facing manager
+# failures are handled here, while errexit remains enabled for unexpected
+# command failures inside operations.
+trap - ERR
+main "$@"
 EOF_MANAGER
 
 chmod 0755 /usr/local/bin/arrsuite
