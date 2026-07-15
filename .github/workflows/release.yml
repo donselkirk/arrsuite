@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "arrsuite.sh"
+      - "ct/**/*.sh"
+      - "install/**/*.sh"
+      - "tools/arrsuite-manager"
+      - "tools/**/*.sh"
 
 permissions:
   contents: write

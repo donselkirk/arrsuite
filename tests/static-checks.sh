@@ -151,6 +151,16 @@ bash -n "${project_root}/tools/fix-console-autologin.sh"
 printf 'Checking release workflow...\n'
 [[ -s "$release_workflow" ]]
 grep -q '^name: Validate and Release$' "$release_workflow"
+grep -q '^    paths:$' "$release_workflow"
+grep -q '      - "arrsuite.sh"' "$release_workflow"
+grep -q '      - "ct/\*\*/\*.sh"' "$release_workflow"
+grep -q '      - "install/\*\*/\*.sh"' "$release_workflow"
+grep -q '      - "tools/arrsuite-manager"' "$release_workflow"
+grep -q '      - "tools/\*\*/\*.sh"' "$release_workflow"
+if grep -Eq 'README|AGENTS' "$release_workflow"; then
+  echo "Documentation files must not trigger validation and releases." >&2
+  exit 1
+fi
 grep -q 'bash tests/static-checks.sh' "$release_workflow"
 grep -q 'gh release create' "$release_workflow"
 grep -q 'dist/arrsuite-install.sh' "$release_workflow"
