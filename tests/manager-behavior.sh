@@ -95,6 +95,28 @@ fi
 exit 0
 EOF_SYSTEMCTL
 chmod 0755 "$test_root/bin/systemctl"
+cat >"$test_root/bin/docker" <<'EOF_DOCKER'
+#!/usr/bin/env bash
+set -e
+case "${1:-}" in
+  inspect)
+    if [[ "${2:-}" == "--format" ]]; then
+      printf 'true\n'
+    fi
+    ;;
+  stop)
+    printf 'stop %s\n' "$2" >>"${TEST_ROOT}/docker.log"
+    ;;
+  start)
+    printf 'start %s\n' "$2" >>"${TEST_ROOT}/docker.log"
+    ;;
+  cp)
+    cp -a "${TEST_ROOT}/seerr-config" "${3%/}/config"
+    ;;
+  *) exit 2 ;;
+esac
+EOF_DOCKER
+chmod 0755 "$test_root/bin/docker"
 
 run_manager() {
   ARRSUITE_BASE_DIR="$test_root" \
@@ -175,6 +197,18 @@ SEERR_CONFIG_DIR="$test_root/seerr-config" \
 external_seerr_backup="$(find "$test_root/external-seerr-backups" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
 [[ -n "$external_seerr_backup" ]]
 run_manager restore seerr "$external_seerr_backup"
+
+mkdir -p "$test_root/docker-seerr-backups"
+: >"$test_root/docker.log"
+SEERR_BACKUP_ALLOW_NON_ROOT=1 \
+  TEST_ROOT="$test_root" \
+  PATH="$test_root/bin:$PATH" \
+  bash "$project_root/tools/seerr-backup.sh" --docker seerr-container "$test_root/docker-seerr-backups"
+docker_seerr_backup="$(find "$test_root/docker-seerr-backups" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
+[[ -n "$docker_seerr_backup" ]]
+grep -qx 'stop seerr-container' "$test_root/docker.log"
+grep -qx 'start seerr-container' "$test_root/docker.log"
+run_manager restore seerr "$docker_seerr_backup"
 python3 - "$test_root/invalid-seerr.zip" <<'PYTHON'
 import sys
 import zipfile

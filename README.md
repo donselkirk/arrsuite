@@ -141,6 +141,19 @@ consistency, creates `arrsuite_seerr_backup_<timestamp>.zip`, and restores the
 service to its previous running state. Copy that ZIP into the ArrSuite LXC and
 restore it with `arrsuite restore seerr <backup.zip>`.
 
+For a Seerr instance running in Docker, run the backup tool on the Docker host
+and provide the required container name:
+
+```bash
+bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/seerr-backup.sh)" -- --docker seerr /root
+```
+
+Replace `seerr` with the actual container name. Docker mode requires the
+container to be running, stops it, copies `/app/config`, creates the compatible
+ZIP in the selected output directory, and restarts the container. If the
+container uses a nonstandard internal config path, set
+`SEERR_DOCKER_CONFIG_PATH` before running the command.
+
 ## Update an existing ArrSuite LXC
 
 Containers with self-update support can refresh the ArrSuite runtime and then

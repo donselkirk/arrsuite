@@ -187,6 +187,10 @@ grep -q 'bash tests/static-checks.sh' "$release_workflow"
 grep -q 'gh release create' "$release_workflow"
 grep -q 'dist/arrsuite-install.sh' "$release_workflow"
 grep -q 'dist/seerr-backup.sh' "$release_workflow"
+grep -q -- '--docker CONTAINER' "$seerr_backup_tool"
+grep -q 'docker stop' "$seerr_backup_tool"
+grep -q 'docker cp' "$seerr_backup_tool"
+grep -q 'docker start' "$seerr_backup_tool"
 grep -q 'dist/VERSION' "$release_workflow"
 if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then
   echo "README must not hard-code an ArrSuite version number." >&2
