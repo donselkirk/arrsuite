@@ -777,6 +777,7 @@ msg_ok "Installed Selected ArrSuite Applications"
 motd_ssh
 customize
 configure_arrsuite_motd
+configure_arrsuite_console_autologin
 
 # The shared customize() helper creates the standard remote update wrapper.
 # Until ArrSuite is merged upstream, keep the prototype self-contained and

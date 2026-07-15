@@ -83,6 +83,10 @@ container-getty@1.service   Proxmox web console (/dev/tty1)
 console-getty.service       pct console / serial console (/dev/console)
 ```
 
+ArrSuite reapplies and restarts both getty configurations after the shared
+Community Scripts customization step. This ensures a usable console even when
+the upstream helper does not activate the template's getty service.
+
 For a container created with an earlier prototype, run the included repair script as root inside the LXC:
 
 ```bash

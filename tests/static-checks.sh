@@ -90,6 +90,7 @@ grep -q '\[\[ "$app" == "lidarr" || "$app" == "byparr" \]\] && default_state="OF
 grep -q 'check_for_gh_release' "$install_script"
 grep -q 'setup_uv' "$install_script"
 grep -q 'configure_arrsuite_console_autologin' "$install_script"
+grep -q '^configure_arrsuite_console_autologin$' "$install_script"
 grep -q 'configure_arrsuite_motd' "$install_script"
 grep -q '/opt/arrsuite/installed.apps' "$install_script"
 grep -q 'Installed Applications:' "$install_script"
