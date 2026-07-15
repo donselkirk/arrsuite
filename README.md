@@ -9,11 +9,12 @@ ArrSuite creates one Debian LXC and lets the user choose which supported Arr app
 - Byparr — port 8191 (optional; amd64 only)
 - FlareSolverr — port 8192 (optional; amd64 only)
 - Seerr — port 5055 (optional)
+- Bazarr — port 6767 (optional)
 
 The implementation is intentionally bare-metal inside the LXC. It does not install Docker.
 
 Sonarr and Radarr are selected by default. Lidarr, Prowlarr, Byparr,
-FlareSolverr, and Seerr are optional and unchecked in the installation checklist.
+FlareSolverr, Seerr, and Bazarr are optional and unchecked in the installation checklist.
 FlareSolverr uses port 8192 in ArrSuite because its upstream default of 8191
 conflicts with Byparr.
 
@@ -56,6 +57,7 @@ arrsuite add prowlarr
 arrsuite add byparr
 arrsuite add flaresolverr
 arrsuite add seerr
+arrsuite add bazarr
 
 # Update every installed app
 update
@@ -146,7 +148,7 @@ The standard Community Scripts container and installer structure is retained:
 5. `/opt/arrsuite/installed.apps` is the registry used to decide which apps participate in `update`.
 6. Fresh installs and self-updates consume validated assets from the latest GitHub release.
 
-The Sonarr, Radarr, Lidarr, Prowlarr, Byparr, FlareSolverr, and Seerr modules closely
+The Sonarr, Radarr, Lidarr, Prowlarr, Byparr, FlareSolverr, Seerr, and Bazarr modules closely
 follow their existing Community Scripts implementations. In particular, they reuse:
 
 - `fetch_and_deploy_gh_release`
@@ -166,6 +168,7 @@ Each application keeps its normal paths, so troubleshooting information from the
 /opt/Byparr                              byparr.service
 /opt/flaresolverr                        flaresolverr.service
 /opt/seerr                               seerr.service
+/opt/bazarr       /var/lib/bazarr       bazarr.service
 ```
 
 ## Resource defaults
@@ -180,7 +183,7 @@ The aggregate defaults are deliberately higher than the individual scripts:
 - nesting disabled (the applications run directly in the LXC without Docker)
 
 Users installing only Sonarr and Radarr can reduce the resources in Advanced
-Settings. For all seven applications, especially with Byparr, FlareSolverr, Seerr, or
+Settings. For all eight applications, especially with Byparr, FlareSolverr, Seerr, or
 large libraries,
 8 GB RAM and 24–32 GB disk is a more comfortable allocation. Media and download
 storage should be mounted separately from the LXC root disk.
@@ -214,11 +217,11 @@ Before submitting upstream, test at least these cases on a disposable Proxmox no
 | Case | Selection | Expected result |
 |---|---|---|
 | Fresh amd64 | Sonarr + Radarr | Both services active; ports 8989 and 7878 answer |
-| Fresh amd64 | All seven | All services active; ports 8989, 7878, 8686, 9696, 8191, 8192, and 5055 answer |
+| Fresh amd64 | All eight | All services active; ports 8989, 7878, 8686, 9696, 8191, 8192, 5055, and 6767 answer |
 | Add later | Initially Sonarr, then `arrsuite add radarr` | Existing Sonarr data remains; Radarr is added |
 | Update all | Run `update` after installing all selected apps | ArrSuite refreshes itself and every registered app is checked; one failure does not prevent later apps being attempted |
 | No update | Run `update` twice | Second run reports current releases without replacing data |
-| ARM64 | Sonarr + Radarr + Lidarr + Seerr | All four install; Prowlarr, Byparr, and FlareSolverr selections fail with clear architecture messages |
+| ARM64 | Sonarr + Radarr + Lidarr + Seerr + Bazarr | All five install; Prowlarr, Byparr, and FlareSolverr selections fail with clear architecture messages |
 | Reboot | Reboot the LXC | Every installed service returns active |
 | Blank password | Leave root password blank | Web console and `pct console` auto-login as root |
 | Backup restore | Back up and restore the LXC | App configurations and registry remain intact |

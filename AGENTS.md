@@ -15,6 +15,7 @@ Supported applications and ports:
 - Byparr: 8191 (amd64 only)
 - FlareSolverr: 8192 (amd64 only; changed from upstream 8191 to avoid Byparr)
 - Seerr: 5055
+- Bazarr: 6767
 
 Sonarr and Radarr must be selected by default. All other applications must be
 optional and unchecked. LXC nesting must default to disabled.

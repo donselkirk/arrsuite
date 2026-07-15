@@ -99,6 +99,7 @@ if [[ -r "$registry" ]]; then
       byparr) label="Byparr"; port="8191" ;;
       flaresolverr) label="FlareSolverr"; port="8192" ;;
       seerr) label="Seerr"; port="5055" ;;
+      bazarr) label="Bazarr"; port="6767" ;;
       *) continue ;;
     esac
 
@@ -156,7 +157,7 @@ readonly DEFAULT_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/release
 readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
 readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
 readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
-readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr)
+readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr)
 
 declare -A APP_LABEL=(
   [sonarr]="Sonarr"
@@ -166,6 +167,7 @@ declare -A APP_LABEL=(
   [byparr]="Byparr"
   [flaresolverr]="FlareSolverr"
   [seerr]="Seerr"
+  [bazarr]="Bazarr"
 )
 
 declare -A APP_DESCRIPTION=(
@@ -176,6 +178,7 @@ declare -A APP_DESCRIPTION=(
   [byparr]="Cloudflare bypass service (port 8191; amd64 only)"
   [flaresolverr]="Cloudflare proxy service (port 8192; amd64 only)"
   [seerr]="Media request manager (port 5055)"
+  [bazarr]="Subtitle manager (port 6767)"
 )
 
 declare -A APP_PORT=(
@@ -186,6 +189,7 @@ declare -A APP_PORT=(
   [byparr]="8191"
   [flaresolverr]="8192"
   [seerr]="5055"
+  [bazarr]="6767"
 )
 
 [[ $EUID -eq 0 || "${ARRSUITE_ALLOW_NON_ROOT:-0}" == "1" ]] || {
@@ -393,6 +397,36 @@ ExecStart=/usr/bin/node dist/index.js
 [Install]
 WantedBy=multi-user.target
 EOF_SERVICE
+}
+
+write_bazarr_service() {
+  cat > /etc/systemd/system/bazarr.service <<'EOF_SERVICE'
+[Unit]
+Description=Bazarr Daemon
+After=syslog.target network.target
+
+[Service]
+WorkingDirectory=/opt/bazarr/
+UMask=0002
+Restart=on-failure
+RestartSec=5
+Type=simple
+ExecStart=/opt/bazarr/venv/bin/python3 /opt/bazarr/bazarr.py
+KillSignal=SIGINT
+TimeoutStopSec=20
+SyslogIdentifier=bazarr
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+configure_bazarr() {
+  install -d -m 0775 /var/lib/bazarr
+  chmod 0775 /opt/bazarr
+  sed -i.bak 's/--only-binary=Pillow//g' /opt/bazarr/requirements.txt
+  $STD uv venv --clear /opt/bazarr/venv --python 3.12 || return
+  $STD uv pip install -r /opt/bazarr/requirements.txt --python /opt/bazarr/venv/bin/python3 || return
 }
 
 build_seerr() {
@@ -787,6 +821,49 @@ update_seerr() {
   fi
 }
 
+install_bazarr() {
+  msg_info "Installing Bazarr"
+  PYTHON_VERSION="3.12" setup_uv || return
+  fetch_and_deploy_gh_release \
+    "bazarr" \
+    "morpheus65535/bazarr" \
+    "prebuild" \
+    "latest" \
+    "/opt/bazarr" \
+    "bazarr.zip" || return
+  configure_bazarr || return
+  msg_ok "Installed Bazarr"
+
+  write_bazarr_service
+  systemctl daemon-reload
+  systemctl enable -q --now bazarr || return
+  register_app bazarr
+  msg_ok "Started Bazarr"
+}
+
+update_bazarr() {
+  if check_for_gh_release "bazarr" "morpheus65535/bazarr"; then
+    msg_info "Stopping Bazarr"
+    systemctl stop bazarr || return
+    msg_ok "Stopped Bazarr"
+
+    PYTHON_VERSION="3.12" setup_uv || return
+    fetch_and_deploy_gh_release \
+      "bazarr" \
+      "morpheus65535/bazarr" \
+      "prebuild" \
+      "latest" \
+      "/opt/bazarr" \
+      "bazarr.zip" || return
+    configure_bazarr || return
+
+    msg_info "Starting Bazarr"
+    systemctl start bazarr || return
+    msg_ok "Started Bazarr"
+    msg_ok "Updated Bazarr"
+  fi
+}
+
 install_app() {
   local app
   app="$(normalize_app "$1")"
@@ -799,6 +876,7 @@ install_app() {
     byparr) install_byparr ;;
     flaresolverr) install_flaresolverr ;;
     seerr) install_seerr ;;
+    bazarr) install_bazarr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -818,6 +896,7 @@ update_app() {
     byparr) update_byparr ;;
     flaresolverr) update_flaresolverr ;;
     seerr) update_seerr ;;
+    bazarr) update_bazarr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -832,7 +911,7 @@ choose_uninstalled_apps() {
   for app in "${SUPPORTED_APPS[@]}"; do
     if ! is_installed "$app"; then
       default_state="ON"
-      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" ]] && default_state="OFF"
+      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" || "$app" == "bazarr" ]] && default_state="OFF"
       options+=("$app" "${APP_DESCRIPTION[$app]}" "$default_state")
     fi
   done
@@ -1056,6 +1135,7 @@ Supported apps:
   byparr    Cloudflare bypass service, port 8191 (amd64 only)
   flaresolverr Cloudflare proxy service, port 8192 (amd64 only)
   seerr        Media request manager, port 5055
+  bazarr       Subtitle manager, port 6767
 
 The Community Scripts command `update` invokes `arrsuite update`.
 EOF_HELP
