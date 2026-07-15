@@ -26,6 +26,10 @@ optional and unchecked. LXC nesting must default to disabled.
 - Support `arrsuite add [app ...]`, `arrsuite list`, `arrsuite status [app ...]`, and
   `arrsuite update [app ...]`, `arrsuite restart [app ...]`, plus
   `arrsuite self-update`.
+- Support confirmed `arrsuite remove` and `arrsuite reset` operations. Removal
+  preserves application data unless `--purge` is specified. Reset purges data
+  and reinstalls the application. Purge and reset do not create backups;
+  `--yes` permits deliberate noninteractive operation.
 - Unknown commands must return a concise error naming the command, display
   usage, and exit nonzero without invoking the inherited global error trap.
 - App-targeted update, restart, status, backup, and restore operations must

@@ -7,6 +7,7 @@ test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
 
 mkdir -p "$test_root/bin" "$test_root/lib" "$test_root/run" "$test_root/runtime" \
+  "$test_root/opt" "$test_root/systemd" "$test_root/etc-seerr" \
   "$test_root/app-data/sonarr" "$test_root/app-data/radarr" "$test_root/app-data/lidarr" \
   "$test_root/app-data/prowlarr" "$test_root/app-data/bazarr/db" \
   "$test_root/seerr-config/db" \
@@ -113,6 +114,7 @@ EOF_CURL
 chmod 0755 "$test_root/bin/curl"
 cat >"$test_root/bin/systemctl" <<'EOF_SYSTEMCTL'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >>"${TEST_ROOT}/systemctl.log"
 if [[ "${1:-}" == "restart" ]]; then
   printf '%s\n' "${2:-}" >>"${TEST_ROOT}/restarts.log"
   [[ "${2:-}" == "${SYSTEMCTL_FAIL_SERVICE:-}" ]] && exit 1
@@ -155,7 +157,11 @@ run_manager() {
     ARRSUITE_MOTD_PATH="$test_root/runtime/arrsuite-motd.sh" \
     ARRSUITE_REPAIR_PATH="$test_root/runtime/fix-console-autologin.sh" \
     ARRSUITE_APP_DATA_ROOT="$test_root/app-data" \
-    ARRSUITE_SEERR_CONFIG_DIR="$test_root/seerr-config" \
+    ARRSUITE_APP_INSTALL_ROOT="$test_root/opt" \
+    ARRSUITE_SYSTEMD_UNIT_DIR="$test_root/systemd" \
+    ARRSUITE_SEERR_CONFIG_DIR="${ARRSUITE_TEST_SEERR_CONFIG_DIR:-$test_root/seerr-config}" \
+    ARRSUITE_SEERR_SYSTEM_CONFIG_DIR="$test_root/etc-seerr" \
+    ARRSUITE_RELEASE_MARKER_ROOT="$test_root/runtime" \
     PROJECT_ROOT="$project_root" \
     TEST_ROOT="$test_root" \
     PATH="$test_root/bin:$PATH" \
@@ -215,6 +221,50 @@ grep -q 'arrsuite restart \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite status \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite backup \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite restore app backup.zip' <<<"$status_output"
+grep -q 'arrsuite remove app' <<<"$status_output"
+grep -q 'arrsuite reset app' <<<"$status_output"
+
+printf '%s\n' bazarr >"$test_root/installed.apps"
+mkdir -p "$test_root/opt/bazarr"
+printf 'program fixture\n' >"$test_root/opt/bazarr/bazarr.py"
+printf '[Unit]\n' >"$test_root/systemd/bazarr.service"
+printf '1.2.3\n' >"$test_root/runtime/.bazarr"
+run_manager remove bazarr
+grep -Fxq bazarr "$test_root/installed.apps"
+[[ -f "$test_root/opt/bazarr/bazarr.py" ]]
+run_manager remove bazarr --yes
+[[ ! -e "$test_root/opt/bazarr" ]]
+[[ ! -e "$test_root/systemd/bazarr.service" ]]
+[[ ! -e "$test_root/runtime/.bazarr" ]]
+[[ -f "$test_root/app-data/bazarr/db/bazarr.db" ]]
+! grep -Fxq bazarr "$test_root/installed.apps"
+grep -q '^disable --now bazarr$' "$test_root/systemctl.log"
+
+printf '%s\n' seerr >"$test_root/installed.apps"
+mkdir -p "$test_root/opt/seerr/config/db"
+printf 'preserved seerr fixture\n' >"$test_root/opt/seerr/config/db/db.sqlite3"
+printf 'program fixture\n' >"$test_root/opt/seerr/package.json"
+ARRSUITE_TEST_SEERR_CONFIG_DIR="$test_root/opt/seerr/config" run_manager remove seerr --yes
+[[ -f "$test_root/opt/seerr/config/db/db.sqlite3" ]]
+[[ ! -e "$test_root/opt/seerr/package.json" ]]
+! grep -Fxq seerr "$test_root/installed.apps"
+
+printf '%s\n' sonarr >"$test_root/installed.apps"
+mkdir -p "$test_root/opt/Sonarr"
+printf 'program fixture\n' >"$test_root/opt/Sonarr/Sonarr"
+if STD=false run_manager reset sonarr --yes; then
+  echo "A reset with a failed clean reinstall unexpectedly succeeded." >&2
+  exit 1
+fi
+[[ ! -e "$test_root/opt/Sonarr" ]]
+[[ ! -e "$test_root/app-data/sonarr" ]]
+! grep -Fxq sonarr "$test_root/installed.apps"
+[[ ! -d "$test_root/backups" ]]
+mkdir -p "$test_root/app-data/sonarr"
+cat >"$test_root/app-data/sonarr/config.xml" <<'EOF_CONFIG'
+<Config><UrlBase></UrlBase><ApiKey>test-api-key</ApiKey></Config>
+EOF_CONFIG
+printf '%s\n' sonarr radarr >"$test_root/installed.apps"
 
 if run_manager backup bazarr; then
   echo "A backup of an uninstalled app unexpectedly succeeded." >&2

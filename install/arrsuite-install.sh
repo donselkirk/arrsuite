@@ -158,7 +158,11 @@ readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
 readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
 readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
 readonly APP_DATA_ROOT="${ARRSUITE_APP_DATA_ROOT:-/var/lib}"
+readonly APP_INSTALL_ROOT="${ARRSUITE_APP_INSTALL_ROOT:-/opt}"
+readonly SYSTEMD_UNIT_DIR="${ARRSUITE_SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
 readonly SEERR_CONFIG_PATH="${ARRSUITE_SEERR_CONFIG_DIR:-/opt/seerr/config}"
+readonly SEERR_SYSTEM_CONFIG_DIR="${ARRSUITE_SEERR_SYSTEM_CONFIG_DIR:-/etc/seerr}"
+readonly RELEASE_MARKER_ROOT="${ARRSUITE_RELEASE_MARKER_ROOT:-$HOME}"
 readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr)
 
 declare -A APP_LABEL=(
@@ -199,6 +203,18 @@ declare -A APP_DATA_DIR=(
   [radarr]="${APP_DATA_ROOT}/radarr"
   [lidarr]="${APP_DATA_ROOT}/lidarr"
   [prowlarr]="${APP_DATA_ROOT}/prowlarr"
+  [bazarr]="${APP_DATA_ROOT}/bazarr"
+)
+
+declare -A APP_INSTALL_DIR=(
+  [sonarr]="${APP_INSTALL_ROOT}/Sonarr"
+  [radarr]="${APP_INSTALL_ROOT}/Radarr"
+  [lidarr]="${APP_INSTALL_ROOT}/Lidarr"
+  [prowlarr]="${APP_INSTALL_ROOT}/Prowlarr"
+  [byparr]="${APP_INSTALL_ROOT}/Byparr"
+  [flaresolverr]="${APP_INSTALL_ROOT}/flaresolverr"
+  [seerr]="${APP_INSTALL_ROOT}/seerr"
+  [bazarr]="${APP_INSTALL_ROOT}/bazarr"
 )
 
 declare -A APP_API_VERSION=(
@@ -279,6 +295,15 @@ register_app() {
     printf '%s\n' "$app" >>"$REGISTRY"
     sort -u -o "$REGISTRY" "$REGISTRY"
   fi
+}
+
+unregister_app() {
+  local app temp_registry
+  app="$(normalize_app "$1")"
+  temp_registry="$(mktemp "${BASE_DIR}/.installed.apps.XXXXXX")"
+  grep -Fxv "$app" "$REGISTRY" >"$temp_registry" || true
+  chmod --reference="$REGISTRY" "$temp_registry" 2>/dev/null || chmod 0644 "$temp_registry"
+  mv "$temp_registry" "$REGISTRY"
 }
 
 supports_backup() {
@@ -1539,6 +1564,115 @@ add_apps() {
   ((failures == 0))
 }
 
+confirm_destructive_action() {
+  local prompt="$1" response=""
+  if command -v tty >/dev/null 2>&1 && tty -s; then
+    if ! read -r -p "${prompt} [y/N] " response </dev/tty 2>/dev/null; then
+      msg_error "Confirmation requires an interactive terminal; use --yes to continue"
+      return 1
+    fi
+  else
+    msg_error "Confirmation requires an interactive terminal; use --yes to continue"
+    return 1
+  fi
+  [[ "${response,,}" == "y" || "${response,,}" == "yes" ]]
+}
+
+remove_app_files() {
+  local app="$1" purge="$2" install_dir preserve_dir=""
+  install_dir="${APP_INSTALL_DIR[$app]}"
+
+  systemctl disable --now "$app" >/dev/null 2>&1 || true
+  rm -f "${SYSTEMD_UNIT_DIR}/${app}.service"
+
+  if [[ "$app" == "seerr" && "$purge" == "0" && -d "$SEERR_CONFIG_PATH" \
+      && "$SEERR_CONFIG_PATH" == "${install_dir}/"* ]]; then
+    preserve_dir="$(mktemp -d "${BASE_DIR}/.seerr-preserve.XXXXXX")"
+    mv "$SEERR_CONFIG_PATH" "${preserve_dir}/config" || { rm -rf "$preserve_dir"; return 1; }
+  fi
+
+  rm -rf "$install_dir" "${install_dir}.arrsuite-new" \
+    "${install_dir}.arrsuite-previous" "${install_dir}.arrsuite-home"
+  rm -f "${RELEASE_MARKER_ROOT}/.${app}"
+
+  if [[ -n "$preserve_dir" ]]; then
+    install -d -m 0755 "$install_dir"
+    mv "${preserve_dir}/config" "$SEERR_CONFIG_PATH" || return 1
+    rmdir "$preserve_dir"
+  fi
+
+  if [[ "$purge" == "1" ]]; then
+    [[ -z "${APP_DATA_DIR[$app]:-}" ]] || rm -rf "${APP_DATA_DIR[$app]}"
+    [[ "$app" != "seerr" ]] || rm -rf "$SEERR_CONFIG_PATH"
+  fi
+  [[ "$app" != "seerr" ]] || rm -rf "$SEERR_SYSTEM_CONFIG_DIR"
+
+  systemctl daemon-reload
+  systemctl reset-failed "$app" >/dev/null 2>&1 || true
+  unregister_app "$app"
+}
+
+remove_or_reset_apps() {
+  local action="$1" purge=0 assume_yes=0 app failures=0 prompt labels="" suffix=""
+  shift
+  local -a apps=()
+
+  [[ "$action" != "reset" ]] || purge=1
+  while (($#)); do
+    case "$1" in
+      --purge)
+        [[ "$action" == "remove" ]] || { msg_error "--purge is implicit with reset"; return 2; }
+        purge=1
+        ;;
+      --yes|-y) assume_yes=1 ;;
+      --*) msg_error "Unknown ${action} option: $1"; return 2 ;;
+      *) apps+=("$(normalize_app "$1")") ;;
+    esac
+    shift
+  done
+  ((${#apps[@]} > 0)) || { msg_error "Usage: arrsuite ${action} app [app ...] [--yes]"; return 2; }
+
+  for app in "${apps[@]}"; do
+    require_installed_app "$app" || return
+    labels+="${labels:+, }${APP_LABEL[$app]}"
+  done
+  if [[ "$action" == "reset" ]]; then
+    prompt="Reset ${labels}? All application data will be permanently deleted and the apps reinstalled."
+  elif ((purge)); then
+    prompt="Remove ${labels} and permanently delete all application data?"
+  else
+    prompt="Remove ${labels}? Application data will be preserved."
+  fi
+  if (( ! assume_yes )) && ! confirm_destructive_action "$prompt"; then
+    msg_warn "${action^} cancelled"
+    return 0
+  fi
+
+  for app in "${apps[@]}"; do
+    msg_info "${action^}ing ${APP_LABEL[$app]}"
+    if ! remove_app_files "$app" "$purge"; then
+      msg_error "Failed to remove ${APP_LABEL[$app]}"
+      failures=$((failures + 1))
+      continue
+    fi
+    if [[ "$action" == "reset" ]]; then
+      if (set -e; install_app "$app"); then
+        msg_ok "Reset ${APP_LABEL[$app]}"
+      else
+        msg_error "Removed ${APP_LABEL[$app]}, but the clean reinstall failed"
+        failures=$((failures + 1))
+      fi
+    else
+      suffix=""
+      if [[ "$purge" == "0" ]]; then
+        suffix="; application data preserved"
+      fi
+      msg_ok "Removed ${APP_LABEL[$app]}${suffix}"
+    fi
+  done
+  ((failures == 0))
+}
+
 update_apps() {
   local -a apps=("$@")
   local app failures=0
@@ -1743,6 +1877,10 @@ ArrSuite multi-application manager
 
 Usage:
   arrsuite add [app ...]       Install apps; opens a checklist when no app is named
+  arrsuite remove app [app ...] [--purge] [--yes]
+                               Remove apps; preserve data unless --purge is used
+  arrsuite reset app [app ...] [--yes]
+                               Delete app data and perform a clean reinstall
   arrsuite update [app ...]    Update all installed apps, or only named apps
   arrsuite restart [app ...]   Restart all installed apps, or only named apps
   arrsuite self-update         Update ArrSuite and Community Scripts helpers
@@ -1776,6 +1914,16 @@ main() {
       shift
       add_apps "$@"
       ;;
+    remove|uninstall)
+      acquire_lock
+      shift
+      remove_or_reset_apps remove "$@"
+      ;;
+    reset)
+      acquire_lock
+      shift
+      remove_or_reset_apps reset "$@"
+      ;;
     update|upgrade)
       acquire_lock
       shift
@@ -1807,7 +1955,7 @@ main() {
       acquire_lock
       shift
       (($# == 2)) || {
-        msg_error "Usage: arrsuite restore sonarr|radarr|lidarr|seerr backup.zip"
+        msg_error "Usage: arrsuite restore sonarr|radarr|lidarr|prowlarr|seerr|bazarr backup.zip"
         exit 2
       }
       restore_backup "$1" "$2"

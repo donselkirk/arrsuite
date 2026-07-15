@@ -101,6 +101,28 @@ arrsuite add prowlarr bazarr
 Canceling the checklist makes no changes. An application is added to
 `/opt/arrsuite/installed.apps` only after it installs successfully.
 
+### Remove or reset applications
+
+Removal stops the application, deletes its program and service files, and
+removes it from ArrSuite's installed-app registry. Application settings and
+databases are preserved by default, so adding the application again reuses
+them.
+
+```bash
+# Remove an application but preserve its data
+arrsuite remove bazarr
+
+# Permanently delete the application and its data
+arrsuite remove bazarr --purge
+
+# Purge the existing data and install a clean copy
+arrsuite reset bazarr
+```
+
+Remove and reset display a confirmation before making changes. For deliberate
+noninteractive use, add `--yes`. Purge and reset do not create an automatic
+backup.
+
 ### Update applications
 
 ```bash
@@ -345,6 +367,7 @@ Proxmox node before submitting upstream.
 | Fresh amd64 | Sonarr + Radarr | Both services active and both web interfaces answer |
 | Fresh amd64 | All applications | All services active and all configured ports answer |
 | Add later | Install Sonarr, then add Radarr | Sonarr data remains and Radarr is registered |
+| Remove/reset | Remove with preserved data, purge, and reset an app | Confirmation is required and the registry matches the result |
 | Update all | Run `update` with several apps | Runtime and every app are checked; later apps run after a failure |
 | No update | Run `update` twice | Current releases are reported without replacing data |
 | ARM64 | Sonarr + Radarr + Lidarr + Seerr + Bazarr | All install; amd64-only apps show clear architecture errors |

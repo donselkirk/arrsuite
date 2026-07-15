@@ -42,7 +42,7 @@
       "type": "warning"
     },
     {
-      "text": "Use 'arrsuite add' to install another supported application and 'update' to update every installed application.",
+      "text": "Use 'arrsuite add' to install another supported application, 'arrsuite remove' or 'arrsuite reset' to manage installed applications, and 'update' to update everything installed.",
       "type": "info"
     }
   ]
