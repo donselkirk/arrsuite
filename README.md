@@ -11,6 +11,19 @@ The implementation is intentionally bare-metal inside the LXC. It does not insta
 
 Sonarr and Radarr are selected by default. Lidarr and Byparr are optional and unchecked in the installation checklist.
 
+## Run from a Proxmox shell
+
+Run the repository bootstrap as root on the Proxmox VE host:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/donselkirk/arrsuite/main/arrsuite.sh)"
+```
+
+The bootstrap downloads the current Community Scripts `build.func` at runtime
+and redirects only the application-specific installer request to this
+repository. This keeps the container creation workflow on the latest upstream
+helpers without requiring a full fork of the Community Scripts repository.
+
 ## Included upstream files
 
 ```text

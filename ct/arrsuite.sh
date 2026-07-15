@@ -5,7 +5,13 @@
 # License: MIT | https://github.com/community-scripts/ProxmoxVED/raw/main/LICENSE
 # Source: https://wiki.servarr.com/
 
-source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main/misc/build.func)
+if [[ -n "${ARRSUITE_BUILD_FUNC_PATH:-}" ]]; then
+  # The repository bootstrap supplies a temporary copy of the current upstream
+  # helper with only its application-installer URL redirected to this project.
+  source "$ARRSUITE_BUILD_FUNC_PATH"
+else
+  source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main/misc/build.func)
+fi
 
 APP="ArrSuite"
 var_tags="${var_tags:-arr;media}"

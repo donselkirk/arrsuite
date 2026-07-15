@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ct_script="${project_root}/ct/arrsuite.sh"
+bootstrap_script="${project_root}/arrsuite.sh"
 install_script="${project_root}/install/arrsuite-install.sh"
 json_file="${project_root}/json/arrsuite.json"
 manager_tmp="$(mktemp)"
@@ -12,6 +13,7 @@ trap 'rm -f "$manager_tmp"' EXIT
 
 printf 'Checking Bash syntax...\n'
 bash -n "$ct_script"
+bash -n "$bootstrap_script"
 bash -n "$install_script"
 
 awk '
@@ -36,7 +38,7 @@ printf 'Checking JSON metadata...\n'
 python3 -m json.tool "$json_file" >/dev/null
 
 printf 'Checking required project files...\n'
-for required in "$ct_script" "$install_script" "$json_file" "$standalone_manager"; do
+for required in "$bootstrap_script" "$ct_script" "$install_script" "$json_file" "$standalone_manager"; do
   [[ -s "$required" ]] || {
     echo "Missing required file: $required" >&2
     exit 1
@@ -44,6 +46,9 @@ for required in "$ct_script" "$install_script" "$json_file" "$standalone_manager
 done
 
 grep -q 'function update_script()' "$ct_script"
+grep -q 'ARRSUITE_BUILD_FUNC_PATH' "$ct_script"
+grep -q 'ARRSUITE_INSTALL_URL' "$bootstrap_script"
+grep -q 'donselkirk/arrsuite/main' "$bootstrap_script"
 grep -q 'arrsuite update' "$ct_script"
 grep -q 'fetch_and_deploy_gh_release' "$install_script"
 grep -q 'SUPPORTED_APPS=(sonarr radarr lidarr byparr)' "$install_script"
@@ -67,7 +72,7 @@ bash "$behavior_test"
 if command -v shellcheck >/dev/null 2>&1; then
   printf 'Running ShellCheck...\n'
   # SC1090/SC1091: function libraries are generated or downloaded at runtime.
-  shellcheck -e SC1090,SC1091 "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh"
+  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh"
 else
   printf 'ShellCheck not installed; skipping it.\n'
 fi
