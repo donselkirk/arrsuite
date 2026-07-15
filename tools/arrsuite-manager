@@ -300,7 +300,9 @@ with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as arch
 PYTHON
   then
     rm -f "$temp_archive"
-    ((was_active)) && systemctl start seerr || true
+    if ((was_active)); then
+      systemctl start seerr || true
+    fi
     msg_error "Failed to create Seerr backup"
     return 1
   fi
