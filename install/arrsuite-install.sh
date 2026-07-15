@@ -97,6 +97,7 @@ if [[ -r "$registry" ]]; then
       lidarr) label="Lidarr"; port="8686" ;;
       prowlarr) label="Prowlarr"; port="9696" ;;
       byparr) label="Byparr"; port="8191" ;;
+      flaresolverr) label="FlareSolverr"; port="8192" ;;
       *) continue ;;
     esac
 
@@ -153,7 +154,7 @@ readonly DEFAULT_REPOSITORY_RAW_URL="https://raw.githubusercontent.com/donselkir
 readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
 readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
 readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
-readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr)
+readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr)
 
 declare -A APP_LABEL=(
   [sonarr]="Sonarr"
@@ -161,6 +162,7 @@ declare -A APP_LABEL=(
   [lidarr]="Lidarr"
   [prowlarr]="Prowlarr"
   [byparr]="Byparr"
+  [flaresolverr]="FlareSolverr"
 )
 
 declare -A APP_DESCRIPTION=(
@@ -169,6 +171,7 @@ declare -A APP_DESCRIPTION=(
   [lidarr]="Music collection manager (port 8686)"
   [prowlarr]="Indexer manager (port 9696; amd64 only)"
   [byparr]="Cloudflare bypass service (port 8191; amd64 only)"
+  [flaresolverr]="Cloudflare proxy service (port 8192; amd64 only)"
 )
 
 declare -A APP_PORT=(
@@ -177,6 +180,7 @@ declare -A APP_PORT=(
   [lidarr]="8686"
   [prowlarr]="9696"
   [byparr]="8191"
+  [flaresolverr]="8192"
 )
 
 [[ $EUID -eq 0 || "${ARRSUITE_ALLOW_NON_ROOT:-0}" == "1" ]] || {
@@ -332,6 +336,29 @@ WorkingDirectory=/opt/Byparr
 ExecStart=/usr/local/bin/uv run python3 main.py
 Restart=on-failure
 RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+write_flaresolverr_service() {
+  cat > /etc/systemd/system/flaresolverr.service <<'EOF_SERVICE'
+[Unit]
+Description=FlareSolverr
+After=network.target
+
+[Service]
+SyslogIdentifier=flaresolverr
+Restart=always
+RestartSec=5
+Type=simple
+Environment="LOG_LEVEL=info"
+Environment="CAPTCHA_SOLVER=none"
+Environment="PORT=8192"
+WorkingDirectory=/opt/flaresolverr
+ExecStart=/opt/flaresolverr/flaresolverr
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
@@ -615,6 +642,64 @@ update_byparr() {
   fi
 }
 
+install_flaresolverr() {
+  if [[ "$(dpkg --print-architecture)" != "amd64" ]]; then
+    msg_error "FlareSolverr is only supported on amd64 by the current Community Script."
+    return 1
+  fi
+
+  msg_info "Installing FlareSolverr Dependencies"
+  $STD apt-get install -y apt-transport-https xvfb || return
+  msg_ok "Installed FlareSolverr Dependencies"
+
+  msg_info "Installing Chrome"
+  setup_deb822_repo \
+    "google-chrome" \
+    "https://dl.google.com/linux/linux_signing_key.pub" \
+    "https://dl.google.com/linux/chrome/deb/" \
+    "stable" || return
+  $STD apt update || return
+  $STD apt install -y google-chrome-stable || return
+  rm -f /etc/apt/sources.list.d/google-chrome.list
+  msg_ok "Installed Chrome"
+
+  fetch_and_deploy_gh_release \
+    "flaresolverr" \
+    "FlareSolverr/FlareSolverr" \
+    "prebuild" \
+    "latest" \
+    "/opt/flaresolverr" \
+    "flaresolverr_linux_x64.tar.gz" || return
+
+  write_flaresolverr_service
+  systemctl daemon-reload
+  systemctl enable -q --now flaresolverr || return
+  register_app flaresolverr
+  msg_ok "Installed FlareSolverr"
+}
+
+update_flaresolverr() {
+  if check_for_gh_release "flaresolverr" "FlareSolverr/FlareSolverr"; then
+    msg_info "Stopping FlareSolverr"
+    systemctl stop flaresolverr || return
+    msg_ok "Stopped FlareSolverr"
+
+    rm -rf /opt/flaresolverr
+    fetch_and_deploy_gh_release \
+      "flaresolverr" \
+      "FlareSolverr/FlareSolverr" \
+      "prebuild" \
+      "latest" \
+      "/opt/flaresolverr" \
+      "flaresolverr_linux_x64.tar.gz" || return
+
+    msg_info "Starting FlareSolverr"
+    systemctl start flaresolverr || return
+    msg_ok "Started FlareSolverr"
+    msg_ok "Updated FlareSolverr"
+  fi
+}
+
 install_app() {
   local app
   app="$(normalize_app "$1")"
@@ -625,6 +710,7 @@ install_app() {
     lidarr) install_lidarr ;;
     prowlarr) install_prowlarr ;;
     byparr) install_byparr ;;
+    flaresolverr) install_flaresolverr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -642,6 +728,7 @@ update_app() {
     lidarr) update_lidarr ;;
     prowlarr) update_prowlarr ;;
     byparr) update_byparr ;;
+    flaresolverr) update_flaresolverr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -656,7 +743,7 @@ choose_uninstalled_apps() {
   for app in "${SUPPORTED_APPS[@]}"; do
     if ! is_installed "$app"; then
       default_state="ON"
-      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" ]] && default_state="OFF"
+      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" ]] && default_state="OFF"
       options+=("$app" "${APP_DESCRIPTION[$app]}" "$default_state")
     fi
   done
@@ -862,6 +949,7 @@ Supported apps:
   lidarr    Music collection manager, port 8686
   prowlarr  Indexer manager, port 9696 (amd64 only)
   byparr    Cloudflare bypass service, port 8191 (amd64 only)
+  flaresolverr Cloudflare proxy service, port 8192 (amd64 only)
 
 The Community Scripts command `update` invokes `arrsuite update`.
 EOF_HELP

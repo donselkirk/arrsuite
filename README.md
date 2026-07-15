@@ -7,10 +7,14 @@ This prototype creates one Debian LXC and lets the user choose which supported A
 - Lidarr — port 8686 (optional)
 - Prowlarr — port 9696 (optional; amd64 only)
 - Byparr — port 8191 (optional; amd64 only)
+- FlareSolverr — port 8192 (optional; amd64 only)
 
 The implementation is intentionally bare-metal inside the LXC. It does not install Docker.
 
-Sonarr and Radarr are selected by default. Lidarr, Prowlarr, and Byparr are optional and unchecked in the installation checklist.
+Sonarr and Radarr are selected by default. Lidarr, Prowlarr, Byparr, and
+FlareSolverr are optional and unchecked in the installation checklist.
+FlareSolverr uses port 8192 in ArrSuite because its upstream default of 8191
+conflicts with Byparr.
 
 ## Run from a Proxmox shell
 
@@ -48,6 +52,7 @@ arrsuite add sonarr radarr
 arrsuite add lidarr
 arrsuite add prowlarr
 arrsuite add byparr
+arrsuite add flaresolverr
 
 # Update every installed app
 update
@@ -132,7 +137,8 @@ The standard Community Scripts container and installer structure is retained:
 4. `/usr/local/bin/arrsuite` sources that bundle when adding or updating an app.
 5. `/opt/arrsuite/installed.apps` is the small registry used to decide which apps participate in `update`.
 
-The Sonarr, Radarr, Lidarr, Prowlarr, and Byparr modules closely follow their existing Community Scripts implementations. In particular, they reuse:
+The Sonarr, Radarr, Lidarr, Prowlarr, Byparr, and FlareSolverr modules closely
+follow their existing Community Scripts implementations. In particular, they reuse:
 
 - `fetch_and_deploy_gh_release`
 - `check_for_gh_release`
@@ -148,6 +154,7 @@ Each application keeps its normal paths, so troubleshooting information from the
 /opt/Lidarr       /var/lib/lidarr       lidarr.service
 /opt/Prowlarr     /var/lib/prowlarr     prowlarr.service
 /opt/Byparr                              byparr.service
+/opt/flaresolverr                        flaresolverr.service
 ```
 
 ## Resource defaults
@@ -162,7 +169,7 @@ The aggregate defaults are deliberately higher than the individual scripts:
 - nesting disabled (the applications run directly in the LXC without Docker)
 
 Users installing only Sonarr and Radarr can reduce the resources in Advanced
-Settings. For all five applications, especially with Byparr or large libraries,
+Settings. For all six applications, especially with Byparr, FlareSolverr, or large libraries,
 8 GB RAM and 24–32 GB disk is a more comfortable allocation. Media and download
 storage should be mounted separately from the LXC root disk.
 
@@ -185,11 +192,11 @@ Before submitting upstream, test at least these cases on a disposable Proxmox no
 | Case | Selection | Expected result |
 |---|---|---|
 | Fresh amd64 | Sonarr + Radarr | Both services active; ports 8989 and 7878 answer |
-| Fresh amd64 | All five | All services active; ports 8989, 7878, 8686, 9696, and 8191 answer |
+| Fresh amd64 | All six | All services active; ports 8989, 7878, 8686, 9696, 8191, and 8192 answer |
 | Add later | Initially Sonarr, then `arrsuite add radarr` | Existing Sonarr data remains; Radarr is added |
 | Update all | Run `update` after installing all four | Every registered app is checked; one failure does not prevent later apps being attempted |
 | No update | Run `update` twice | Second run reports current releases without replacing data |
-| ARM64 | Sonarr + Radarr + Lidarr | All three install; Prowlarr and Byparr selections fail with clear architecture messages |
+| ARM64 | Sonarr + Radarr + Lidarr | All three install; Prowlarr, Byparr, and FlareSolverr selections fail with clear architecture messages |
 | Reboot | Reboot the LXC | Every installed service returns active |
 | Blank password | Leave root password blank | Web console and `pct console` auto-login as root |
 | Backup restore | Back up and restore the LXC | App configurations and registry remain intact |
@@ -215,7 +222,7 @@ feat: add selectable multi-app ArrSuite container
 1. Ask maintainers whether an aggregate script with several web ports is acceptable under one metadata entry. `interface_port` is currently `null` for that reason.
 2. Confirm the preferred aggregate name and icon. The metadata currently uses `ArrSuite` and a proposed Servarr icon URL.
 3. Confirm whether persisting the installer’s Community Scripts function bundle is acceptable. It avoids custom GitHub logic and enables future app additions, but maintainers may prefer a project-provided runtime library or a refresh command.
-4. Decide whether ARM64 should remain enabled for the container even though Prowlarr and Byparr are amd64-only in their current Community Scripts.
+4. Decide whether ARM64 should remain enabled for the container even though Prowlarr, Byparr, and FlareSolverr are amd64-only in their current Community Scripts.
 5. Test the current Sonarr, Radarr, and Lidarr release asset patterns against both amd64 and arm64.
 6. Consider a snapshot warning before updating several applications in one operation.
 
