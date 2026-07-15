@@ -1,0 +1,79 @@
+name: Validate and Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arrsuite-release
+  cancel-in-progress: false
+
+jobs:
+  validate-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run ArrSuite validation
+        run: |
+          bash tests/static-checks.sh
+          git diff --check
+
+      - name: Calculate next release version
+        id: version
+        shell: bash
+        run: |
+          latest="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -n '1p')"
+          if [[ -z "$latest" ]]; then
+            next="v1.0.0"
+          else
+            version="${latest#v}"
+            IFS=. read -r major minor patch <<<"$version"
+            next="v${major}.${minor}.$((patch + 1))"
+          fi
+          echo "version=$next" >>"$GITHUB_OUTPUT"
+
+      - name: Build release assets
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          printf '%s\n' "$RELEASE_VERSION" >dist/VERSION
+          cp arrsuite.sh dist/arrsuite.sh
+          cp ct/arrsuite.sh dist/arrsuite-ct.sh
+          cp install/arrsuite-install.sh dist/arrsuite-install.sh
+          cp tools/arrsuite-manager dist/arrsuite-manager
+          cp tools/arrsuite-motd.sh dist/arrsuite-motd.sh
+          cp tools/fix-console-autologin.sh dist/fix-console-autologin.sh
+          chmod 0755 dist/*.sh dist/arrsuite-manager
+          (cd dist && sha256sum VERSION *.sh arrsuite-manager >SHA256SUMS)
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$RELEASE_VERSION" \
+            dist/VERSION \
+            dist/SHA256SUMS \
+            dist/arrsuite.sh \
+            dist/arrsuite-ct.sh \
+            dist/arrsuite-install.sh \
+            dist/arrsuite-manager \
+            dist/arrsuite-motd.sh \
+            dist/fix-console-autologin.sh \
+            --target "$GITHUB_SHA" \
+            --title "ArrSuite $RELEASE_VERSION" \
+            --generate-notes

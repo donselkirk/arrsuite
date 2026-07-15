@@ -73,9 +73,11 @@ and current systemd state.
 
 `arrsuite.sh` must continue using the current official Community Scripts
 helpers while redirecting only the application-installer URL to this
-repository. Do not enable Bash `nounset` in the bootstrap; explicitly retain
-`set +u` because upstream helpers reference optional unset variables such as
-`SSH_CLIENT`.
+repository's latest GitHub release. Fresh installs, `update`, and
+`self-update` must default to `releases/latest/download`; a raw commit URL may
+remain available only as an explicit development override. Do not enable Bash
+`nounset` in the bootstrap; explicitly retain `set +u` because upstream helpers
+reference optional unset variables such as `SSH_CLIENT`.
 
 Do not run a Community Scripts `msg_info` spinner behind a `whiptail` dialog.
 
@@ -99,12 +101,14 @@ systemd startup, release downloads, or web interfaces.
   `https://github.com/donselkirk/arrsuite.git` when the user asks for a change.
 - Use focused commit messages such as `feat: add Prowlarr module` or
   `fix: clear getty credentials in unprivileged LXC`.
-- After every pushed change, always provide a cache-bypassing, commit-pinned
-  installation command using the new commit hash:
+- Every push to `main` must run the GitHub Actions validation and create the
+  next patch release with generated change notes and stable runtime assets.
+- After every pushed change, verify the generated release and provide a
+  cache-bypassing, version-pinned installation command using that release:
 
 ```bash
-ARRSUITE_REPOSITORY_RAW_URL="https://raw.githubusercontent.com/donselkirk/arrsuite/<commit>" \
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/donselkirk/arrsuite/<commit>/arrsuite.sh)"
+ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>" \
+bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/download/<version>/arrsuite.sh)"
 ```
 
 - When applicable, also provide commit-pinned commands to update or repair an

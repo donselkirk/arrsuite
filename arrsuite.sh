@@ -4,8 +4,21 @@
 set +u
 set -Eeo pipefail
 
-readonly REPOSITORY_RAW_URL="${ARRSUITE_REPOSITORY_RAW_URL:-https://raw.githubusercontent.com/donselkirk/arrsuite/main}"
 readonly COMMUNITY_RAW_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main}"
+readonly DEFAULT_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/latest/download"
+
+if [[ -n "${ARRSUITE_REPOSITORY_RAW_URL:-}" ]]; then
+  source_base_url="${ARRSUITE_REPOSITORY_RAW_URL%/}"
+  ct_url="${source_base_url}/ct/arrsuite.sh"
+  install_url="${source_base_url}/install/arrsuite-install.sh"
+  version_url=""
+else
+  release_base_url="${ARRSUITE_RELEASE_BASE_URL:-$DEFAULT_RELEASE_BASE_URL}"
+  release_base_url="${release_base_url%/}"
+  ct_url="${release_base_url}/arrsuite-ct.sh"
+  install_url="${release_base_url}/arrsuite-install.sh"
+  version_url="${release_base_url}/VERSION"
+fi
 
 bootstrap_dir="$(mktemp -d)"
 trap 'rm -rf "$bootstrap_dir"' EXIT
@@ -30,6 +43,7 @@ if [[ "$redirect_count" -lt 2 ]]; then
 fi
 
 export ARRSUITE_BUILD_FUNC_PATH="$build_func"
-export ARRSUITE_INSTALL_URL="${REPOSITORY_RAW_URL}/install/arrsuite-install.sh"
+export ARRSUITE_INSTALL_URL="$install_url"
+export ARRSUITE_VERSION_URL="$version_url"
 
-source <(curl -fsSL "${REPOSITORY_RAW_URL}/ct/arrsuite.sh")
+source <(curl -fsSL "$ct_url")

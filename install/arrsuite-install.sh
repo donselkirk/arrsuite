@@ -149,8 +149,9 @@ readonly REGISTRY="${ARRSUITE_REGISTRY:-${BASE_DIR}/installed.apps}"
 readonly FUNCTIONS_LIBRARY="${ARRSUITE_FUNCTIONS_LIBRARY:-${BASE_DIR}/lib/community-functions.sh}"
 readonly TOOLS_LIBRARY="${ARRSUITE_TOOLS_LIBRARY:-${BASE_DIR}/lib/community-tools.sh}"
 readonly LOCK_FILE="${ARRSUITE_LOCK_FILE:-/run/lock/arrsuite.lock}"
-readonly REPOSITORY_FILE="${BASE_DIR}/repository.url"
-readonly DEFAULT_REPOSITORY_RAW_URL="https://raw.githubusercontent.com/donselkirk/arrsuite/main"
+readonly UPDATE_URL_FILE="${BASE_DIR}/update.url"
+readonly VERSION_FILE="${BASE_DIR}/version"
+readonly DEFAULT_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/latest/download"
 readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
 readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
 readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
@@ -853,20 +854,21 @@ update_apps() {
 }
 
 self_update() {
-  local repository_url community_url temp_dir changed=0
-  repository_url="${ARRSUITE_REPOSITORY_RAW_URL:-}"
-  if [[ -z "$repository_url" && -r "$REPOSITORY_FILE" ]]; then
-    repository_url="$(<"$REPOSITORY_FILE")"
+  local update_url community_url temp_dir changed=0
+  update_url="${ARRSUITE_UPDATE_BASE_URL:-}"
+  if [[ -z "$update_url" && -r "$UPDATE_URL_FILE" ]]; then
+    update_url="$(<"$UPDATE_URL_FILE")"
   fi
-  repository_url="${repository_url:-$DEFAULT_REPOSITORY_RAW_URL}"
-  repository_url="${repository_url%/}"
+  update_url="${update_url:-$DEFAULT_UPDATE_BASE_URL}"
+  update_url="${update_url%/}"
   community_url="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main}"
   community_url="${community_url%/}"
 
   temp_dir="$(mktemp -d)"
-  if ! curl -fsSL "${repository_url}/tools/arrsuite-manager" -o "${temp_dir}/arrsuite" \
-    || ! curl -fsSL "${repository_url}/tools/arrsuite-motd.sh" -o "${temp_dir}/arrsuite-motd.sh" \
-    || ! curl -fsSL "${repository_url}/tools/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh" \
+  if ! curl -fsSL "${update_url}/arrsuite-manager" -o "${temp_dir}/arrsuite" \
+    || ! curl -fsSL "${update_url}/arrsuite-motd.sh" -o "${temp_dir}/arrsuite-motd.sh" \
+    || ! curl -fsSL "${update_url}/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh" \
+    || ! curl -fsSL "${update_url}/VERSION" -o "${temp_dir}/VERSION" \
     || ! curl -fsSL "${community_url}/misc/install.func" -o "${temp_dir}/community-functions.sh" \
     || ! curl -fsSL "${community_url}/misc/tools.func" -o "${temp_dir}/community-tools.sh"; then
     rm -rf "$temp_dir"
@@ -877,7 +879,8 @@ self_update() {
   if ! bash -n "${temp_dir}/arrsuite" \
     || ! bash -n "${temp_dir}/arrsuite-motd.sh" \
     || ! bash -n "${temp_dir}/fix-console-autologin.sh" \
-    || ! grep -q '^fetch_and_deploy_gh_release()' "${temp_dir}/community-tools.sh"; then
+    || ! grep -q '^fetch_and_deploy_gh_release()' "${temp_dir}/community-tools.sh" \
+    || ! grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' "${temp_dir}/VERSION"; then
     rm -rf "$temp_dir"
     msg_error "Downloaded ArrSuite update files failed validation"
     return 1
@@ -890,13 +893,22 @@ self_update() {
   install -m 0755 "${temp_dir}/fix-console-autologin.sh" "$REPAIR_PATH"
   install -m 0644 "${temp_dir}/community-functions.sh" "$FUNCTIONS_LIBRARY"
   install -m 0644 "${temp_dir}/community-tools.sh" "$TOOLS_LIBRARY"
-  printf '%s\n' "$repository_url" >"$REPOSITORY_FILE"
+  install -m 0644 "${temp_dir}/VERSION" "$VERSION_FILE"
+  printf '%s\n' "$update_url" >"$UPDATE_URL_FILE"
   rm -rf "$temp_dir"
 
   if ((changed)); then
     msg_ok "Updated ArrSuite Runtime"
   else
     msg_ok "ArrSuite Runtime is Current"
+  fi
+}
+
+show_version() {
+  if [[ -r "$VERSION_FILE" ]]; then
+    printf 'ArrSuite %s\n' "$(<"$VERSION_FILE")"
+  else
+    printf 'ArrSuite development\n'
   fi
 }
 
@@ -942,6 +954,7 @@ Usage:
   arrsuite add [app ...]       Install apps; opens a checklist when no app is named
   arrsuite update [app ...]    Update all installed apps, or only named apps
   arrsuite self-update         Update ArrSuite and Community Scripts helpers
+  arrsuite version             Show the installed ArrSuite release version
   arrsuite list                Show supported apps, ports, and service state
   arrsuite status              Show systemd status for installed apps
   arrsuite help                Show this help
@@ -977,6 +990,9 @@ main() {
       acquire_lock
       self_update
       ;;
+    version|--version|-V)
+      show_version
+      ;;
     list)
       show_list
       ;;
@@ -997,6 +1013,16 @@ main "$@"
 EOF_MANAGER
 
 chmod 0755 /usr/local/bin/arrsuite
+printf '%s\n' "https://github.com/donselkirk/arrsuite/releases/latest/download" \
+  >/opt/arrsuite/update.url
+if [[ -n "${ARRSUITE_VERSION_URL:-}" ]]; then
+  if curl -fsSL "$ARRSUITE_VERSION_URL" -o /opt/arrsuite/version \
+    && grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' /opt/arrsuite/version; then
+    chmod 0644 /opt/arrsuite/version
+  else
+    rm -f /opt/arrsuite/version
+  fi
+fi
 msg_ok "Created ArrSuite Manager"
 
 if [[ -n "${ARRSUITE_APPS:-}" ]]; then

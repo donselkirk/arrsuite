@@ -6,6 +6,7 @@ ct_script="${project_root}/ct/arrsuite.sh"
 bootstrap_script="${project_root}/arrsuite.sh"
 install_script="${project_root}/install/arrsuite-install.sh"
 json_file="${project_root}/json/arrsuite.json"
+release_workflow="${project_root}/.github/workflows/release.yml"
 manager_tmp="$(mktemp)"
 motd_tmp="$(mktemp)"
 standalone_manager="${project_root}/tools/arrsuite-manager"
@@ -69,7 +70,8 @@ grep -q 'var_ram="${var_ram:-6144}"' "$ct_script"
 grep -q 'var_disk="${var_disk:-16}"' "$ct_script"
 grep -q 'ARRSUITE_BUILD_FUNC_PATH' "$ct_script"
 grep -q 'ARRSUITE_INSTALL_URL' "$bootstrap_script"
-grep -q 'donselkirk/arrsuite/main' "$bootstrap_script"
+grep -q 'releases/latest/download' "$bootstrap_script"
+grep -q 'ARRSUITE_REPOSITORY_RAW_URL' "$bootstrap_script"
 if grep -Eq '^set -[^[:space:]]*u' "$bootstrap_script"; then
   echo "The bootstrap must not enable nounset; Community Scripts uses optional unset variables." >&2
   exit 1
@@ -102,6 +104,8 @@ grep -q '\[\[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" |
 grep -q 'check_for_gh_release' "$install_script"
 grep -q 'self_update()' "$install_script"
 grep -q 'arrsuite self-update' "$install_script"
+grep -q 'releases/latest/download' "$install_script"
+grep -q 'arrsuite version' "$install_script"
 grep -q 'self-update failed; continuing with application updates' "$install_script"
 if grep -q 'return 130' "$install_script"; then
   echo "Checklist cancellation must not trigger the global error handler." >&2
@@ -137,6 +141,14 @@ if grep -q 'systemctl try-restart.*getty' "$install_script"; then
 fi
 grep -q 'exec /usr/local/bin/arrsuite update' "$install_script"
 bash -n "${project_root}/tools/fix-console-autologin.sh"
+
+printf 'Checking release workflow...\n'
+[[ -s "$release_workflow" ]]
+grep -q '^name: Validate and Release$' "$release_workflow"
+grep -q 'bash tests/static-checks.sh' "$release_workflow"
+grep -q 'gh release create' "$release_workflow"
+grep -q 'dist/arrsuite-install.sh' "$release_workflow"
+grep -q 'dist/VERSION' "$release_workflow"
 
 printf 'Running manager behavior tests...\n'
 bash "$behavior_test"

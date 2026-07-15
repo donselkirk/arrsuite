@@ -33,9 +33,10 @@ while (($#)); do
   esac
 done
 case "$url" in
-  */tools/arrsuite-manager) source_file="${PROJECT_ROOT}/tools/arrsuite-manager" ;;
-  */tools/arrsuite-motd.sh) source_file="${PROJECT_ROOT}/tools/arrsuite-motd.sh" ;;
-  */tools/fix-console-autologin.sh) source_file="${PROJECT_ROOT}/tools/fix-console-autologin.sh" ;;
+  */arrsuite-manager) source_file="${PROJECT_ROOT}/tools/arrsuite-manager" ;;
+  */arrsuite-motd.sh) source_file="${PROJECT_ROOT}/tools/arrsuite-motd.sh" ;;
+  */fix-console-autologin.sh) source_file="${PROJECT_ROOT}/tools/fix-console-autologin.sh" ;;
+  */VERSION) printf 'v9.8.7\n' >"$output"; exit 0 ;;
   */misc/install.func) source_file="${TEST_ROOT}/lib/community-functions.sh" ;;
   */misc/tools.func) source_file="${TEST_ROOT}/lib/community-tools.sh" ;;
   *) exit 22 ;;
@@ -90,5 +91,7 @@ run_manager self-update
 cmp -s "$manager" "$test_root/runtime/arrsuite"
 cmp -s "$project_root/tools/arrsuite-motd.sh" "$test_root/runtime/arrsuite-motd.sh"
 cmp -s "$project_root/tools/fix-console-autologin.sh" "$test_root/runtime/fix-console-autologin.sh"
+grep -qx 'v9.8.7' "$test_root/version"
+grep -q 'ArrSuite v9.8.7' < <(run_manager version)
 
 printf 'Manager behavior checks passed.\n'

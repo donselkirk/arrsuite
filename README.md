@@ -21,13 +21,14 @@ conflicts with Byparr.
 Run the repository bootstrap as root on the Proxmox VE host:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/donselkirk/arrsuite/main/arrsuite.sh)"
+bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/download/arrsuite.sh)"
 ```
 
 The bootstrap downloads the current Community Scripts `build.func` at runtime
-and redirects only the application-specific installer request to this
-repository. This keeps the container creation workflow on the latest upstream
-helpers without requiring a full fork of the Community Scripts repository.
+and redirects only the application-specific installer request to the latest
+validated ArrSuite GitHub release. This keeps the container creation workflow
+on the latest upstream helpers without requiring a full fork of the Community
+Scripts repository.
 
 ## Included upstream files
 
@@ -62,6 +63,9 @@ arrsuite update
 
 # Update only the ArrSuite manager, banner, repair tool, and helper snapshots
 arrsuite self-update
+
+# Display the installed release version
+arrsuite version
 
 # Update only selected installed apps
 arrsuite update sonarr radarr
