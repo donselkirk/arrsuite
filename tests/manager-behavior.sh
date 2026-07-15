@@ -26,7 +26,7 @@ color() { :; }
 msg_info() { :; }
 msg_ok() { printf '%s\n' "$*"; }
 msg_warn() { :; }
-msg_error() { :; }
+msg_error() { printf 'ERROR: %s\n' "$*" >&2; }
 arch_resolve() { printf '%s' "$1"; }
 EOF_FUNCTIONS
 cat >"$test_root/lib/community-tools.sh" <<'EOF_TOOLS'
@@ -154,6 +154,17 @@ grep -q '^FlareSolverr[[:space:]]\+no[[:space:]]\+8192' <<<"$list_output"
 grep -q '^Seerr[[:space:]]\+no[[:space:]]\+5055' <<<"$list_output"
 grep -q '^Bazarr[[:space:]]\+no[[:space:]]\+6767' <<<"$list_output"
 
+if unknown_output="$(run_manager does-not-exist 2>&1)"; then
+  echo "An unknown command unexpectedly succeeded." >&2
+  exit 1
+fi
+grep -q 'ERROR: Unknown command: does-not-exist' <<<"$unknown_output"
+grep -q 'Usage:' <<<"$unknown_output"
+if grep -q 'in line' <<<"$unknown_output"; then
+  echo "An unknown command triggered the global error handler." >&2
+  exit 1
+fi
+
 if STD=false run_manager add sonarr; then
   echo "A failed install unexpectedly succeeded." >&2
   exit 1
@@ -164,14 +175,26 @@ fi
 }
 
 printf '%s\n' sonarr radarr >"$test_root/installed.apps"
-if run_manager update lidarr; then
+if uninstalled_output="$(run_manager update lidarr 2>&1)"; then
   echo "A targeted update of an uninstalled app unexpectedly succeeded." >&2
   exit 1
 fi
+grep -q 'Lidarr is not installed. Run: arrsuite add lidarr' <<<"$uninstalled_output"
+if grep -q 'in line' <<<"$uninstalled_output"; then
+  echo "An uninstalled application triggered the global error handler." >&2
+  exit 1
+fi
+
+if status_uninstalled_output="$(run_manager status lidarr 2>&1)"; then
+  echo "Targeted status for an uninstalled app unexpectedly succeeded." >&2
+  exit 1
+fi
+grep -q 'Lidarr is not installed. Run: arrsuite add lidarr' <<<"$status_uninstalled_output"
 
 status_output="$(run_manager help)"
 grep -q 'arrsuite update \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite restart \[app ...\]' <<<"$status_output"
+grep -q 'arrsuite status \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite backup \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite restore app backup.zip' <<<"$status_output"
 

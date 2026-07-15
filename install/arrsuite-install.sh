@@ -257,6 +257,19 @@ is_installed() {
   grep -Fxq "$app" "$REGISTRY" 2>/dev/null
 }
 
+require_installed_app() {
+  local app
+  app="$(normalize_app "$1")"
+  if ! is_supported "$app"; then
+    msg_error "Unsupported application: ${app:-$1}"
+    return 2
+  fi
+  if ! is_installed "$app"; then
+    msg_error "${APP_LABEL[$app]} is not installed. Run: arrsuite add ${app}"
+    return 1
+  fi
+}
+
 register_app() {
   local app
   app="$(normalize_app "$1")"
@@ -533,6 +546,10 @@ backup_apps() {
       failures=$((failures + 1))
       continue
     fi
+    if ! require_installed_app "$app"; then
+      failures=$((failures + 1))
+      continue
+    fi
     if [[ "$app" == "seerr" ]]; then
       create_seerr_backup "${destination%/}/${app}" || failures=$((failures + 1))
     else
@@ -550,10 +567,7 @@ restore_native_backup() {
     msg_error "Native restore is supported only for Sonarr, Radarr, and Lidarr"
     return 2
   }
-  is_installed "$app" || {
-    msg_error "${APP_LABEL[$app]} is not installed"
-    return 1
-  }
+  require_installed_app "$app" || return
   [[ -f "$backup_file" && -r "$backup_file" && "${backup_file,,}" == *.zip ]] || {
     msg_error "Provide a readable native ${APP_LABEL[$app]} backup ZIP"
     return 2
@@ -644,10 +658,7 @@ restore_backup() {
   local app
   app="$(normalize_app "${1:-}")"
   if [[ "$app" == "seerr" ]]; then
-    is_installed seerr || {
-      msg_error "Seerr is not installed"
-      return 1
-    }
+    require_installed_app seerr || return
     restore_seerr_backup "$2"
   else
     restore_native_backup "$app" "$2"
@@ -1410,8 +1421,7 @@ update_apps() {
     app="$(normalize_app "$app")"
     [[ -n "$app" ]] || continue
 
-    if ! is_installed "$app"; then
-      msg_error "${app} is not installed. Run: arrsuite add ${app}"
+    if ! require_installed_app "$app"; then
       failures=$((failures + 1))
       continue
     fi
@@ -1448,13 +1458,7 @@ restart_apps() {
     app="$(normalize_app "$app")"
     [[ -n "$app" ]] || continue
 
-    if ! is_supported "$app"; then
-      msg_error "Unsupported application: ${app}"
-      failures=$((failures + 1))
-      continue
-    fi
-    if ! is_installed "$app"; then
-      msg_error "${APP_LABEL[$app]} is not installed"
+    if ! require_installed_app "$app"; then
       failures=$((failures + 1))
       continue
     fi
@@ -1557,17 +1561,27 @@ show_list() {
 }
 
 show_status() {
-  local app
-  if [[ ! -s "$REGISTRY" ]]; then
+  local -a apps=("$@")
+  local app failures=0
+  if ((${#apps[@]} == 0)); then
+    mapfile -t apps <"$REGISTRY"
+  fi
+  if ((${#apps[@]} == 0)); then
     msg_warn "No applications are installed"
     return 0
   fi
 
-  while IFS= read -r app; do
+  for app in "${apps[@]}"; do
+    app="$(normalize_app "$app")"
     [[ -n "$app" ]] || continue
+    if ! require_installed_app "$app"; then
+      failures=$((failures + 1))
+      continue
+    fi
     echo
     systemctl --no-pager --full status "$app" || true
-  done <"$REGISTRY"
+  done
+  ((failures == 0))
 }
 
 show_help() {
@@ -1585,7 +1599,7 @@ Usage:
   arrsuite restore app backup.zip
                                Restore a Sonarr, Radarr, Lidarr, or Seerr backup
   arrsuite list                Show supported apps, ports, and service state
-  arrsuite status              Show systemd status for installed apps
+  arrsuite status [app ...]    Show status for all installed apps, or only named apps
   arrsuite help                Show this help
 
 Supported apps:
@@ -1647,19 +1661,24 @@ main() {
       show_list
       ;;
     status)
-      show_status
+      shift
+      show_status "$@"
       ;;
     help|-h|--help)
       show_help
       ;;
     *)
+      msg_error "Unknown command: $1"
+      echo >&2
       show_help >&2
       exit 2
       ;;
   esac
 }
 
-main "$@"
+manager_status=0
+main "$@" || manager_status=$?
+exit "$manager_status"
 EOF_MANAGER
 
 chmod 0755 /usr/local/bin/arrsuite

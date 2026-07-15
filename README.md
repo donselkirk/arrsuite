@@ -66,14 +66,19 @@ separately from the LXC root disk.
 
 Run these commands inside the ArrSuite LXC.
 
+Unknown commands return a concise error and display command usage. Commands
+targeting a specific application fail cleanly when the application is not
+installed and show the corresponding `arrsuite add <app>` command.
+
 ### View applications
 
 ```bash
 # Supported applications, ports, installation state, and service state
 arrsuite list
 
-# Detailed systemd status for installed applications
+# Detailed systemd status for all installed applications, or selected apps
 arrsuite status
+arrsuite status sonarr radarr
 
 # Installed ArrSuite release
 arrsuite version
