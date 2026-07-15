@@ -72,7 +72,7 @@ case "$url" in
     printf '[{"type":"manual","path":"/backup/manual/lidarr_backup_test.zip","name":"lidarr_backup_test.zip","time":"2099-01-01T00:00:00Z"}]\n'
     exit 0
     ;;
-  *:9696/api/v3/system/backup)
+  *:9696/api/v1/system/backup)
     printf '[{"type":"manual","path":"/backup/manual/prowlarr_backup_test.zip","name":"prowlarr_backup_test.zip","time":"2099-01-01T00:00:00Z"}]\n'
     exit 0
     ;;

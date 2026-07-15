@@ -81,7 +81,7 @@ declare -A APP_API_VERSION=(
   [sonarr]="v3"
   [radarr]="v3"
   [lidarr]="v1"
-  [prowlarr]="v3"
+  [prowlarr]="v1"
 )
 
 readonly -a BACKUP_APPS=(sonarr radarr lidarr prowlarr seerr bazarr)
