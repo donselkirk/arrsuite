@@ -65,6 +65,8 @@ done
 
 grep -q 'function update_script()' "$ct_script"
 grep -q 'var_nesting="${var_nesting:-0}"' "$ct_script"
+grep -q 'var_ram="${var_ram:-6144}"' "$ct_script"
+grep -q 'var_disk="${var_disk:-16}"' "$ct_script"
 grep -q 'ARRSUITE_BUILD_FUNC_PATH' "$ct_script"
 grep -q 'ARRSUITE_INSTALL_URL' "$bootstrap_script"
 grep -q 'donselkirk/arrsuite/main' "$bootstrap_script"

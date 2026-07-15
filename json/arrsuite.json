@@ -21,8 +21,8 @@
       "config_path": "/opt/arrsuite/installed.apps",
       "resources": {
         "cpu": 2,
-        "ram": 4096,
-        "hdd": 8,
+        "ram": 6144,
+        "hdd": 16,
         "os": "Debian",
         "version": "13"
       }

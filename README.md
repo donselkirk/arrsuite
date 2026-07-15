@@ -155,13 +155,16 @@ Each application keeps its normal paths, so troubleshooting information from the
 The aggregate defaults are deliberately higher than the individual scripts:
 
 - 2 CPU cores
-- 4096 MB RAM
-- 8 GB disk
+- 6144 MB RAM
+- 16 GB disk
 - Debian 13
 - unprivileged LXC
 - nesting disabled (the applications run directly in the LXC without Docker)
 
-Users installing only Sonarr and Radarr can reduce the memory in Advanced Settings. Installing all four applications is the reason for the 4 GB default.
+Users installing only Sonarr and Radarr can reduce the resources in Advanced
+Settings. For all five applications, especially with Byparr or large libraries,
+8 GB RAM and 24–32 GB disk is a more comfortable allocation. Media and download
+storage should be mounted separately from the LXC root disk.
 
 ## Local checks
 
