@@ -95,6 +95,7 @@ if [[ -r "$registry" ]]; then
       sonarr) label="Sonarr"; port="8989" ;;
       radarr) label="Radarr"; port="7878" ;;
       lidarr) label="Lidarr"; port="8686" ;;
+      prowlarr) label="Prowlarr"; port="9696" ;;
       byparr) label="Byparr"; port="8191" ;;
       *) continue ;;
     esac
@@ -147,12 +148,13 @@ readonly REGISTRY="${ARRSUITE_REGISTRY:-${BASE_DIR}/installed.apps}"
 readonly FUNCTIONS_LIBRARY="${ARRSUITE_FUNCTIONS_LIBRARY:-${BASE_DIR}/lib/community-functions.sh}"
 readonly TOOLS_LIBRARY="${ARRSUITE_TOOLS_LIBRARY:-${BASE_DIR}/lib/community-tools.sh}"
 readonly LOCK_FILE="${ARRSUITE_LOCK_FILE:-/run/lock/arrsuite.lock}"
-readonly -a SUPPORTED_APPS=(sonarr radarr lidarr byparr)
+readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr)
 
 declare -A APP_LABEL=(
   [sonarr]="Sonarr"
   [radarr]="Radarr"
   [lidarr]="Lidarr"
+  [prowlarr]="Prowlarr"
   [byparr]="Byparr"
 )
 
@@ -160,6 +162,7 @@ declare -A APP_DESCRIPTION=(
   [sonarr]="TV series manager (port 8989)"
   [radarr]="Movie manager (port 7878)"
   [lidarr]="Music collection manager (port 8686)"
+  [prowlarr]="Indexer manager (port 9696; amd64 only)"
   [byparr]="Cloudflare bypass service (port 8191; amd64 only)"
 )
 
@@ -167,6 +170,7 @@ declare -A APP_PORT=(
   [sonarr]="8989"
   [radarr]="7878"
   [lidarr]="8686"
+  [prowlarr]="9696"
   [byparr]="8191"
 )
 
@@ -283,6 +287,25 @@ After=syslog.target network.target
 UMask=0002
 Type=simple
 ExecStart=/opt/Lidarr/Lidarr -nobrowser -data=/var/lib/lidarr/
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+write_prowlarr_service() {
+  cat > /etc/systemd/system/prowlarr.service <<'EOF_SERVICE'
+[Unit]
+Description=Prowlarr Daemon
+After=syslog.target network.target
+
+[Service]
+UMask=0002
+Type=simple
+ExecStart=/opt/Prowlarr/Prowlarr -nobrowser -data=/var/lib/prowlarr/
 TimeoutStopSec=20
 KillMode=process
 Restart=on-failure
@@ -484,6 +507,56 @@ update_lidarr() {
   fi
 }
 
+install_prowlarr() {
+  if [[ "$(dpkg --print-architecture)" != "amd64" ]]; then
+    msg_error "Prowlarr is only supported on amd64 by the current Community Script."
+    return 1
+  fi
+
+  msg_info "Installing Prowlarr Dependencies"
+  $STD apt install -y sqlite3 || return
+  msg_ok "Installed Prowlarr Dependencies"
+
+  fetch_and_deploy_gh_release \
+    "prowlarr" \
+    "Prowlarr/Prowlarr" \
+    "prebuild" \
+    "latest" \
+    "/opt/Prowlarr" \
+    "Prowlarr.master*linux-core-x64.tar.gz" || return
+
+  mkdir -p /var/lib/prowlarr/
+  chmod 775 /var/lib/prowlarr/ /opt/Prowlarr
+  write_prowlarr_service
+  systemctl daemon-reload
+  systemctl enable -q --now prowlarr || return
+  register_app prowlarr
+  msg_ok "Installed Prowlarr"
+}
+
+update_prowlarr() {
+  if check_for_gh_release "prowlarr" "Prowlarr/Prowlarr"; then
+    msg_info "Stopping Prowlarr"
+    systemctl stop prowlarr || return
+    msg_ok "Stopped Prowlarr"
+
+    rm -rf /opt/Prowlarr
+    fetch_and_deploy_gh_release \
+      "prowlarr" \
+      "Prowlarr/Prowlarr" \
+      "prebuild" \
+      "latest" \
+      "/opt/Prowlarr" \
+      "Prowlarr.master*linux-core-x64.tar.gz" || return
+    chmod 775 /opt/Prowlarr
+
+    msg_info "Starting Prowlarr"
+    systemctl start prowlarr || return
+    msg_ok "Started Prowlarr"
+    msg_ok "Updated Prowlarr"
+  fi
+}
+
 install_byparr() {
   if [[ "$(dpkg --print-architecture)" != "amd64" ]]; then
     msg_error "Byparr is only supported on amd64 by the current Community Script."
@@ -545,6 +618,7 @@ install_app() {
     sonarr) install_sonarr ;;
     radarr) install_radarr ;;
     lidarr) install_lidarr ;;
+    prowlarr) install_prowlarr ;;
     byparr) install_byparr ;;
     *)
       msg_error "Unsupported application: $1"
@@ -561,6 +635,7 @@ update_app() {
     sonarr) update_sonarr ;;
     radarr) update_radarr ;;
     lidarr) update_lidarr ;;
+    prowlarr) update_prowlarr ;;
     byparr) update_byparr ;;
     *)
       msg_error "Unsupported application: $1"
@@ -576,7 +651,7 @@ choose_uninstalled_apps() {
   for app in "${SUPPORTED_APPS[@]}"; do
     if ! is_installed "$app"; then
       default_state="ON"
-      [[ "$app" == "lidarr" || "$app" == "byparr" ]] && default_state="OFF"
+      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" ]] && default_state="OFF"
       options+=("$app" "${APP_DESCRIPTION[$app]}" "$default_state")
     fi
   done
@@ -731,6 +806,7 @@ Supported apps:
   sonarr    TV series manager, port 8989
   radarr    Movie manager, port 7878
   lidarr    Music collection manager, port 8686
+  prowlarr  Indexer manager, port 9696 (amd64 only)
   byparr    Cloudflare bypass service, port 8191 (amd64 only)
 
 The Community Scripts command `update` invokes `arrsuite update`.

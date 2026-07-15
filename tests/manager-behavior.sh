@@ -34,6 +34,7 @@ list_output="$(run_manager list)"
 grep -q '^Sonarr[[:space:]]\+no[[:space:]]\+8989' <<<"$list_output"
 grep -q '^Radarr[[:space:]]\+no[[:space:]]\+7878' <<<"$list_output"
 grep -q '^Lidarr[[:space:]]\+no[[:space:]]\+8686' <<<"$list_output"
+grep -q '^Prowlarr[[:space:]]\+no[[:space:]]\+9696' <<<"$list_output"
 grep -q '^Byparr[[:space:]]\+no[[:space:]]\+8191' <<<"$list_output"
 
 if STD=false run_manager add sonarr; then

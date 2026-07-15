@@ -13,7 +13,7 @@
   "documentation": "https://wiki.servarr.com/",
   "website": "https://wiki.servarr.com/",
   "logo": "https://cdn.jsdelivr.net/gh/selfhst/icons@main/webp/servarr.webp",
-  "description": "Installs a selectable group of Arr applications, including Sonarr, Radarr, Lidarr, and Byparr, into one LXC and manages them through a shared add-and-update command.",
+  "description": "Installs a selectable group of Arr applications, including Sonarr, Radarr, Lidarr, Prowlarr, and Byparr, into one LXC and manages them through a shared add-and-update command.",
   "install_methods": [
     {
       "type": "default",
@@ -38,7 +38,7 @@
       "type": "info"
     },
     {
-      "text": "Byparr is currently available only on amd64; Sonarr, Radarr, and Lidarr also support arm64.",
+      "text": "Prowlarr and Byparr are currently available only on amd64; Sonarr, Radarr, and Lidarr also support arm64.",
       "type": "warning"
     },
     {
