@@ -709,7 +709,9 @@ with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as arch
 PYTHON
   then
     rm -f "$temp_archive"
-    ((was_active)) && systemctl start bazarr || true
+    if ((was_active)); then
+      systemctl start bazarr || true
+    fi
     msg_error "Failed to create Bazarr backup"
     return 1
   fi
