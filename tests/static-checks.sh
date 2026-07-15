@@ -103,6 +103,10 @@ grep -q 'container-getty@1.service.d/override.conf' "$install_script"
 grep -q 'console-getty.service.d/override.conf' "$install_script"
 grep -q 'systemctl restart container-getty@1.service' "$install_script"
 grep -q 'systemctl restart console-getty.service' "$install_script"
+if [[ "$(grep -c '^ImportCredential=$' "$install_script")" -lt 2 ]]; then
+  echo "Both getty overrides must clear Debian 13 systemd credentials." >&2
+  exit 1
+fi
 if grep -q 'systemctl try-restart.*getty' "$install_script"; then
   echo "Console gettys must start even when they were initially inactive." >&2
   exit 1
