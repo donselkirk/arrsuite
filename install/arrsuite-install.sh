@@ -1243,6 +1243,50 @@ update_apps() {
   msg_ok "All installed ArrSuite applications are current"
 }
 
+restart_apps() {
+  local -a apps=("$@")
+  local app failures=0
+
+  if ((${#apps[@]} == 0)); then
+    mapfile -t apps <"$REGISTRY"
+  fi
+  if ((${#apps[@]} == 0)); then
+    msg_warn "No applications are installed"
+    return 0
+  fi
+
+  for app in "${apps[@]}"; do
+    app="$(normalize_app "$app")"
+    [[ -n "$app" ]] || continue
+
+    if ! is_supported "$app"; then
+      msg_error "Unsupported application: ${app}"
+      failures=$((failures + 1))
+      continue
+    fi
+    if ! is_installed "$app"; then
+      msg_error "${APP_LABEL[$app]} is not installed"
+      failures=$((failures + 1))
+      continue
+    fi
+
+    msg_info "Restarting ${APP_LABEL[$app]}"
+    if systemctl restart "$app" && systemctl is-active --quiet "$app"; then
+      msg_ok "Restarted ${APP_LABEL[$app]}"
+    else
+      msg_error "Failed to restart ${APP_LABEL[$app]}"
+      failures=$((failures + 1))
+    fi
+  done
+
+  if ((failures > 0)); then
+    msg_error "${failures} application restart(s) failed; remaining apps were still processed"
+    return 1
+  fi
+
+  msg_ok "All requested ArrSuite applications restarted"
+}
+
 self_update() {
   local update_url community_url temp_dir release_version changed=0
   update_url="${ARRSUITE_UPDATE_BASE_URL:-}"
@@ -1344,6 +1388,7 @@ ArrSuite multi-application manager
 Usage:
   arrsuite add [app ...]       Install apps; opens a checklist when no app is named
   arrsuite update [app ...]    Update all installed apps, or only named apps
+  arrsuite restart [app ...]   Restart all installed apps, or only named apps
   arrsuite self-update         Update ArrSuite and Community Scripts helpers
   arrsuite version             Show the installed ArrSuite release version
   arrsuite backup [app ...] [--output directory]
@@ -1382,6 +1427,11 @@ main() {
         msg_warn "ArrSuite self-update failed; continuing with application updates"
       fi
       update_apps "$@"
+      ;;
+    restart)
+      acquire_lock
+      shift
+      restart_apps "$@"
       ;;
     self-update)
       acquire_lock

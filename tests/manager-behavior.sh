@@ -85,6 +85,10 @@ EOF_CURL
 chmod 0755 "$test_root/bin/curl"
 cat >"$test_root/bin/systemctl" <<'EOF_SYSTEMCTL'
 #!/usr/bin/env bash
+if [[ "${1:-}" == "restart" ]]; then
+  printf '%s\n' "${2:-}" >>"${TEST_ROOT}/restarts.log"
+  [[ "${2:-}" == "${SYSTEMCTL_FAIL_SERVICE:-}" ]] && exit 1
+fi
 [[ " $* " == *" is-active "* ]] && printf 'active\n'
 exit 0
 EOF_SYSTEMCTL
@@ -134,6 +138,7 @@ fi
 
 status_output="$(run_manager help)"
 grep -q 'arrsuite update \[app ...\]' <<<"$status_output"
+grep -q 'arrsuite restart \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite backup \[app ...\]' <<<"$status_output"
 grep -q 'arrsuite restore app backup.zip' <<<"$status_output"
 
@@ -149,6 +154,19 @@ run_manager restore sonarr "$test_root/backups/sonarr/sonarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/pre-restore/sonarr/sonarr_backup_test.zip"
 run_manager restore radarr "$test_root/backups/radarr/radarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/pre-restore/radarr/radarr_backup_test.zip"
+
+run_manager restart sonarr
+run_manager restart
+if run_manager restart lidarr; then
+  echo "Restarting an uninstalled application unexpectedly succeeded." >&2
+  exit 1
+fi
+: >"$test_root/restarts.log"
+if SYSTEMCTL_FAIL_SERVICE=sonarr run_manager restart; then
+  echo "A failed application restart unexpectedly returned success." >&2
+  exit 1
+fi
+grep -qx 'radarr' "$test_root/restarts.log"
 
 self_update_output="$(run_manager self-update)"
 grep -q 'Updated ArrSuite Runtime to v9.8.7' <<<"$self_update_output"

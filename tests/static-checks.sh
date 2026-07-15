@@ -82,6 +82,8 @@ grep -q '^set +u$' "$bootstrap_script" || {
 }
 bash -u -c 'source <(sed -n "1,5p" "$1"); [[ $- != *u* ]]' _ "$bootstrap_script"
 grep -q 'arrsuite update' "$ct_script"
+grep -q 'restart_apps()' "$install_script"
+grep -q 'arrsuite restart \[app ...\]' "$install_script"
 grep -q 'fetch_and_deploy_gh_release' "$install_script"
 grep -q 'community-tools.sh' "$install_script"
 grep -q 'apt install -y python3 whiptail' "$install_script"

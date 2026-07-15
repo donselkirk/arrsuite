@@ -65,6 +65,11 @@ update
 # Equivalent direct manager command
 arrsuite update
 
+# Restart every installed application, or only selected applications
+arrsuite restart
+arrsuite restart sonarr
+arrsuite restart sonarr radarr
+
 # Update only the ArrSuite manager, banner, repair tool, and helper snapshots
 arrsuite self-update
 
