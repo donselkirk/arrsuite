@@ -622,7 +622,11 @@ choose_uninstalled_apps() {
       18 78 8 \
       "${options[@]}" \
       --separate-output \
-      3>&1 1>/dev/tty 2>&3 </dev/tty)" || return 0
+      3>&1 1>/dev/tty 2>&3 </dev/tty)" || {
+      clear >/dev/tty 2>/dev/null || printf '\033[2J\033[H' >/dev/tty
+      return 0
+    }
+    clear >/dev/tty 2>/dev/null || printf '\033[2J\033[H' >/dev/tty
     printf '%s\n' "$selection"
     return 0
   fi
