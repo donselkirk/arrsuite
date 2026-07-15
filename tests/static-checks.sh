@@ -191,6 +191,7 @@ grep -q -- '--docker CONTAINER' "$seerr_backup_tool"
 grep -q 'docker stop' "$seerr_backup_tool"
 grep -q 'docker cp' "$seerr_backup_tool"
 grep -q 'docker start' "$seerr_backup_tool"
+grep -q 'os.path.islink' "$seerr_backup_tool"
 grep -q 'dist/VERSION' "$release_workflow"
 if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then
   echo "README must not hard-code an ArrSuite version number." >&2

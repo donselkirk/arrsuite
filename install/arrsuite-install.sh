@@ -393,7 +393,7 @@ create_seerr_backup() {
     msg_error "Seerr is not installed"
     return 1
   }
-  [[ -f "$config_dir/db/db.sqlite3" ]] || {
+  [[ -f "$config_dir/db/db.sqlite3" && ! -L "$config_dir/db/db.sqlite3" ]] || {
     msg_error "Seerr SQLite database not found: ${config_dir}/db/db.sqlite3"
     return 1
   }
@@ -416,7 +416,6 @@ create_seerr_backup() {
 import datetime
 import json
 import os
-import stat
 import sys
 import zipfile
 
@@ -430,12 +429,14 @@ manifest = {
 with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     archive.writestr("arrsuite-backup.json", json.dumps(manifest, indent=2) + "\n")
     for root, directories, files in os.walk(source):
-        for name in list(directories) + files:
-            path = os.path.join(root, name)
-            if stat.S_ISLNK(os.lstat(path).st_mode):
-                raise RuntimeError(f"Refusing to archive symbolic link: {path}")
+        directories[:] = [
+            name for name in directories
+            if not os.path.islink(os.path.join(root, name))
+        ]
         for name in files:
             path = os.path.join(root, name)
+            if os.path.islink(path):
+                continue
             archive.write(path, os.path.join("config", os.path.relpath(path, source)))
 PYTHON
   then

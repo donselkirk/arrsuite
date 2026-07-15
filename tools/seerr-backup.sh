@@ -100,7 +100,7 @@ elif ((was_active)); then
   systemctl stop "$service"
 fi
 
-[[ -f "$config_dir/db/db.sqlite3" ]] || {
+[[ -f "$config_dir/db/db.sqlite3" && ! -L "$config_dir/db/db.sqlite3" ]] || {
   echo "Only Seerr SQLite installations are supported; db/db.sqlite3 was not found." >&2
   exit 1
 }
@@ -109,7 +109,6 @@ python3 - "$config_dir" "$temp_archive" <<'PYTHON'
 import datetime
 import json
 import os
-import stat
 import sys
 import zipfile
 
@@ -124,13 +123,14 @@ manifest = {
 with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     archive.writestr("arrsuite-backup.json", json.dumps(manifest, indent=2) + "\n")
     for root, directories, files in os.walk(source):
-        for name in list(directories) + files:
-            path = os.path.join(root, name)
-            mode = os.lstat(path).st_mode
-            if stat.S_ISLNK(mode):
-                raise RuntimeError(f"Refusing to archive symbolic link: {path}")
+        directories[:] = [
+            name for name in directories
+            if not os.path.islink(os.path.join(root, name))
+        ]
         for name in files:
             path = os.path.join(root, name)
+            if os.path.islink(path):
+                continue
             relative = os.path.relpath(path, source)
             archive.write(path, os.path.join("config", relative))
 PYTHON

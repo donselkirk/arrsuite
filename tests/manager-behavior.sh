@@ -7,9 +7,11 @@ test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
 
 mkdir -p "$test_root/bin" "$test_root/lib" "$test_root/run" "$test_root/runtime" \
-  "$test_root/app-data/sonarr" "$test_root/app-data/radarr" "$test_root/seerr-config/db"
+  "$test_root/app-data/sonarr" "$test_root/app-data/radarr" "$test_root/seerr-config/db" \
+  "$test_root/seerr-config/logs"
 printf 'seerr-database-fixture\n' >"$test_root/seerr-config/db/db.sqlite3"
 printf '{"initialized":true}\n' >"$test_root/seerr-config/settings.json"
+ln -s /tmp/seerr-machine-logs.json "$test_root/seerr-config/logs/.machinelogs.json"
 for app in sonarr radarr; do
   cat >"$test_root/app-data/$app/config.xml" <<'EOF_CONFIG'
 <Config>
@@ -206,6 +208,12 @@ SEERR_BACKUP_ALLOW_NON_ROOT=1 \
   bash "$project_root/tools/seerr-backup.sh" --docker seerr-container "$test_root/docker-seerr-backups"
 docker_seerr_backup="$(find "$test_root/docker-seerr-backups" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
 [[ -n "$docker_seerr_backup" ]]
+python3 - "$docker_seerr_backup" <<'PYTHON'
+import sys
+import zipfile
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    assert "config/logs/.machinelogs.json" not in archive.namelist()
+PYTHON
 grep -qx 'stop seerr-container' "$test_root/docker.log"
 grep -qx 'start seerr-container' "$test_root/docker.log"
 run_manager restore seerr "$docker_seerr_backup"
