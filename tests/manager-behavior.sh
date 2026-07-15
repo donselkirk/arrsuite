@@ -237,7 +237,10 @@ run_manager remove bazarr --yes
 [[ ! -e "$test_root/systemd/bazarr.service" ]]
 [[ ! -e "$test_root/runtime/.bazarr" ]]
 [[ -f "$test_root/app-data/bazarr/db/bazarr.db" ]]
-! grep -Fxq bazarr "$test_root/installed.apps"
+if grep -Fxq bazarr "$test_root/installed.apps"; then
+  echo "Removed Bazarr remains in installed.apps." >&2
+  exit 1
+fi
 grep -q '^disable --now bazarr$' "$test_root/systemctl.log"
 
 printf '%s\n' seerr >"$test_root/installed.apps"
@@ -247,7 +250,10 @@ printf 'program fixture\n' >"$test_root/opt/seerr/package.json"
 ARRSUITE_TEST_SEERR_CONFIG_DIR="$test_root/opt/seerr/config" run_manager remove seerr --yes
 [[ -f "$test_root/opt/seerr/config/db/db.sqlite3" ]]
 [[ ! -e "$test_root/opt/seerr/package.json" ]]
-! grep -Fxq seerr "$test_root/installed.apps"
+if grep -Fxq seerr "$test_root/installed.apps"; then
+  echo "Removed Seerr remains in installed.apps." >&2
+  exit 1
+fi
 
 printf '%s\n' sonarr >"$test_root/installed.apps"
 mkdir -p "$test_root/opt/Sonarr"
@@ -258,7 +264,10 @@ if STD=false run_manager reset sonarr --yes; then
 fi
 [[ ! -e "$test_root/opt/Sonarr" ]]
 [[ ! -e "$test_root/app-data/sonarr" ]]
-! grep -Fxq sonarr "$test_root/installed.apps"
+if grep -Fxq sonarr "$test_root/installed.apps"; then
+  echo "Reset Sonarr remains registered after its reinstall failed." >&2
+  exit 1
+fi
 [[ ! -d "$test_root/backups" ]]
 mkdir -p "$test_root/app-data/sonarr"
 cat >"$test_root/app-data/sonarr/config.xml" <<'EOF_CONFIG'
