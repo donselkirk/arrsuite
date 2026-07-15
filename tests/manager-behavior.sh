@@ -284,20 +284,16 @@ run_manager backup sonarr radarr --output "$test_root/backups"
 python3 -m zipfile -t "$test_root/backups/sonarr/sonarr_backup_test.zip"
 python3 -m zipfile -t "$test_root/backups/radarr/radarr_backup_test.zip"
 run_manager restore sonarr "$test_root/backups/sonarr/sonarr_backup_test.zip"
-python3 -m zipfile -t "$test_root/backups/pre-restore/sonarr/sonarr_backup_test.zip"
 run_manager restore radarr "$test_root/backups/radarr/radarr_backup_test.zip"
-python3 -m zipfile -t "$test_root/backups/pre-restore/radarr/radarr_backup_test.zip"
 printf '%s\n' sonarr radarr lidarr >"$test_root/installed.apps"
 run_manager backup lidarr --output "$test_root/backups"
 python3 -m zipfile -t "$test_root/backups/lidarr/lidarr_backup_test.zip"
 run_manager restore lidarr "$test_root/backups/lidarr/lidarr_backup_test.zip"
-python3 -m zipfile -t "$test_root/backups/pre-restore/lidarr/lidarr_backup_test.zip"
 
 printf '%s\n' sonarr radarr lidarr prowlarr >"$test_root/installed.apps"
 run_manager backup prowlarr --output "$test_root/backups"
 python3 -m zipfile -t "$test_root/backups/prowlarr/prowlarr_backup_test.zip"
 run_manager restore prowlarr "$test_root/backups/prowlarr/prowlarr_backup_test.zip"
-python3 -m zipfile -t "$test_root/backups/pre-restore/prowlarr/prowlarr_backup_test.zip"
 
 printf '%s\n' sonarr radarr lidarr seerr >"$test_root/installed.apps"
 run_manager backup seerr --output "$test_root/backups"
@@ -305,7 +301,6 @@ seerr_backup="$(find "$test_root/backups/seerr" -maxdepth 1 -name 'arrsuite_seer
 [[ -n "$seerr_backup" ]]
 python3 -m zipfile -t "$seerr_backup"
 run_manager restore seerr "$seerr_backup"
-python3 -m zipfile -t "$(find "$test_root/backups/pre-restore/seerr" -maxdepth 1 -name 'arrsuite_seerr_backup_*.zip' -print -quit)"
 
 printf '%s\n' sonarr radarr lidarr prowlarr seerr bazarr >"$test_root/installed.apps"
 run_manager backup bazarr --output "$test_root/backups"
@@ -313,7 +308,7 @@ bazarr_backup="$(find "$test_root/backups/bazarr" -maxdepth 1 -name 'arrsuite_ba
 [[ -n "$bazarr_backup" ]]
 python3 -m zipfile -t "$bazarr_backup"
 run_manager restore bazarr "$bazarr_backup"
-python3 -m zipfile -t "$(find "$test_root/backups/pre-restore/bazarr" -maxdepth 1 -name 'arrsuite_bazarr_backup_*.zip' -print -quit)"
+[[ ! -e "$test_root/backups/pre-restore" ]]
 
 mkdir -p "$test_root/external-seerr-backups"
 SEERR_CONFIG_DIR="$test_root/seerr-config" \

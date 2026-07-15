@@ -591,7 +591,7 @@ backup_apps() {
 }
 
 restore_native_backup() {
-  local app backup_file safety_dir response
+  local app backup_file response
   app="$(normalize_app "${1:-}")"
   backup_file="${2:-}"
   supports_backup "$app" || {
@@ -612,12 +612,6 @@ restore_native_backup() {
     return 1
   }
 
-  safety_dir="${BASE_DIR}/backups/pre-restore/${app}"
-  msg_info "Creating Pre-Restore Safety Backup for ${APP_LABEL[$app]}"
-  create_native_backup "$app" "$safety_dir" || {
-    msg_error "Restore cancelled because the safety backup failed"
-    return 1
-  }
   configure_app_api "$app" || return
 
   msg_info "Restoring ${APP_LABEL[$app]} from ${backup_file}"
@@ -645,12 +639,6 @@ restore_seerr_backup() {
   validate_seerr_backup_zip "$backup_file" || {
     msg_error "The selected file is not a valid ArrSuite Seerr backup ZIP"
     return 2
-  }
-
-  msg_info "Creating Pre-Restore Safety Backup for Seerr"
-  create_seerr_backup "${BASE_DIR}/backups/pre-restore/seerr" || {
-    msg_error "Restore cancelled because the safety backup failed"
-    return 1
   }
 
   stage_dir="$(mktemp -d)"
@@ -799,11 +787,6 @@ restore_bazarr_backup() {
     return 2
   }
 
-  msg_info "Creating Pre-Restore Safety Backup for Bazarr"
-  create_bazarr_backup "${BASE_DIR}/backups/pre-restore/bazarr" || {
-    msg_error "Restore cancelled because the safety backup failed"
-    return 1
-  }
   stage_dir="$(mktemp -d)"
   if ! validate_bazarr_backup_zip "$backup_file" "$stage_dir"; then
     rm -rf "$stage_dir"

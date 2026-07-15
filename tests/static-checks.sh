@@ -160,7 +160,10 @@ grep -q 'restore_native_backup()' "$install_script"
 grep -q '\[lidarr\]="v1"' "$install_script"
 grep -q 'validate_backup_zip()' "$install_script"
 grep -q '/system/backup/restore/upload' "$install_script"
-grep -q 'Creating Pre-Restore Safety Backup' "$install_script"
+if grep -q 'Creating Pre-Restore Safety Backup\|backups/pre-restore' "$install_script"; then
+  echo "Restore operations must not create automatic safety backups." >&2
+  exit 1
+fi
 grep -q 'create_seerr_backup()' "$install_script"
 grep -q 'restore_seerr_backup()' "$install_script"
 grep -q 'create_bazarr_backup()' "$install_script"

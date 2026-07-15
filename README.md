@@ -203,12 +203,12 @@ arrsuite restore seerr /root/arrsuite_seerr_backup.zip
 arrsuite restore bazarr /root/arrsuite_bazarr_backup.zip
 ```
 
-Before restoring, ArrSuite creates a safety backup in
-`/opt/arrsuite/backups/pre-restore/<app>/`. Sonarr, Radarr, Lidarr, and Prowlarr
-use their native restore endpoints. Seerr and Bazarr validate and safely
-extract their archives, with automatic rollback if the service does not
-restart. Bazarr backups cover ArrSuite's default SQLite configuration; an
-externally configured PostgreSQL database must be backed up separately.
+Restoring does not create an automatic backup, so create one explicitly first
+if you want a recovery copy. Sonarr, Radarr, Lidarr, and Prowlarr use their
+native restore endpoints. Seerr and Bazarr validate and safely extract their
+archives, with automatic rollback if the service does not restart. Bazarr
+backups cover ArrSuite's default SQLite configuration; an externally
+configured PostgreSQL database must be backed up separately.
 
 To copy and restore a backup from the Proxmox host:
 
@@ -373,7 +373,7 @@ Proxmox node before submitting upstream.
 | ARM64 | Sonarr + Radarr + Lidarr + Seerr + Bazarr | All install; amd64-only apps show clear architecture errors |
 | Reboot | Reboot the LXC | Every installed service returns active |
 | Blank password | Use both console types | Both consoles auto-login as root |
-| Restore | Restore each supported app | A safety backup remains and the restored service is active |
+| Restore | Restore each supported app | No automatic backup is created and the restored service is active |
 | LXC backup | Back up and restore the container | App data and the installed-app registry remain intact |
 
 ### Remaining work before an upstream PR

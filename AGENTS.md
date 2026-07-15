@@ -48,8 +48,8 @@ optional and unchecked. LXC nesting must default to disabled.
   installed application. A self-update network failure must not prevent
   application updates.
 - Support Sonarr, Radarr, Lidarr, Prowlarr, Seerr, and Bazarr backup creation and restoration through
-  `arrsuite backup` and `arrsuite restore`; always create a safety backup before
-  restoring an uploaded archive. Sonarr, Radarr, Lidarr, and Prowlarr use native APIs.
+  `arrsuite backup` and `arrsuite restore`; restores must not create an automatic
+  pre-restore backup. Sonarr, Radarr, Lidarr, and Prowlarr use native APIs.
   Seerr and Bazarr use validated archives of `/opt/seerr/config` and
   `/var/lib/bazarr`, respectively, while their services are stopped.
 - Track installed applications in `/opt/arrsuite/installed.apps`.
