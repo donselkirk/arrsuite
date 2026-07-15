@@ -17,6 +17,7 @@ readonly DEFAULT_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/release
 readonly MANAGER_PATH="${ARRSUITE_MANAGER_PATH:-/usr/local/bin/arrsuite}"
 readonly MOTD_PATH="${ARRSUITE_MOTD_PATH:-/etc/profile.d/00_lxc-details.sh}"
 readonly REPAIR_PATH="${ARRSUITE_REPAIR_PATH:-/usr/local/sbin/arrsuite-fix-console-autologin}"
+readonly APP_DATA_ROOT="${ARRSUITE_APP_DATA_ROOT:-/var/lib}"
 readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr)
 
 declare -A APP_LABEL=(
@@ -51,6 +52,13 @@ declare -A APP_PORT=(
   [seerr]="5055"
   [bazarr]="6767"
 )
+
+declare -A APP_DATA_DIR=(
+  [sonarr]="${APP_DATA_ROOT}/sonarr"
+  [radarr]="${APP_DATA_ROOT}/radarr"
+)
+
+readonly -a BACKUP_APPS=(sonarr radarr)
 
 [[ $EUID -eq 0 || "${ARRSUITE_ALLOW_NON_ROOT:-0}" == "1" ]] || {
   echo "Run arrsuite as root." >&2
@@ -108,6 +116,221 @@ register_app() {
     printf '%s\n' "$app" >>"$REGISTRY"
     sort -u -o "$REGISTRY" "$REGISTRY"
   fi
+}
+
+supports_native_backup() {
+  local requested app
+  requested="$(normalize_app "$1")"
+  for app in "${BACKUP_APPS[@]}"; do
+    [[ "$app" == "$requested" ]] && return 0
+  done
+  return 1
+}
+
+configure_app_api() {
+  local app config_file api_key url_base
+  app="$(normalize_app "$1")"
+  config_file="${APP_DATA_DIR[$app]}/config.xml"
+  [[ -r "$config_file" ]] || {
+    msg_error "Unable to read ${APP_LABEL[$app]} configuration: ${config_file}"
+    return 1
+  }
+
+  api_key="$(sed -n 's:.*<ApiKey>\([^<]*\)</ApiKey>.*:\1:p' "$config_file" | head -n1)"
+  url_base="$(sed -n 's:.*<UrlBase>\([^<]*\)</UrlBase>.*:\1:p' "$config_file" | head -n1)"
+  [[ -n "$api_key" ]] || {
+    msg_error "Unable to read the ${APP_LABEL[$app]} API key"
+    return 1
+  }
+
+  url_base="${url_base#/}"
+  url_base="${url_base%/}"
+  if [[ -n "$url_base" ]]; then
+    url_base="/${url_base}"
+  fi
+  APP_API_KEY="$api_key"
+  APP_WEB_URL="http://127.0.0.1:${APP_PORT[$app]}${url_base}"
+  APP_API_URL="${APP_WEB_URL}/api/v3"
+}
+
+wait_for_app_command() {
+  local command_id="$1" response state attempt
+  for ((attempt = 0; attempt < 120; attempt++)); do
+    response="$(curl -fsSL -H "X-Api-Key: ${APP_API_KEY}" "${APP_API_URL}/command/${command_id}")" || return
+    state="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", "").lower())' <<<"$response")" || return
+    case "$state" in
+      completed) return 0 ;;
+      failed|aborted|cancelled)
+        msg_error "Application backup command ended with status: ${state}"
+        return 1
+        ;;
+    esac
+    sleep 1
+  done
+  msg_error "Timed out waiting for the application backup command"
+  return 1
+}
+
+validate_backup_zip() {
+  python3 - "$1" "$2" <<'PYTHON'
+import sys
+import zipfile
+
+try:
+    with zipfile.ZipFile(sys.argv[1]) as archive:
+        names = {name.lower() for name in archive.namelist()}
+        if archive.testzip() is not None:
+            raise ValueError("CRC validation failed")
+        expected = f"{sys.argv[2].lower()}.db"
+        if expected not in names and "nzbdrone.db" not in names:
+            raise ValueError("archive does not contain the expected database")
+except (OSError, ValueError, zipfile.BadZipFile):
+    sys.exit(1)
+PYTHON
+}
+
+create_native_backup() {
+  local app destination response command_id backup_record backup_path backup_name temp_file
+  app="$(normalize_app "$1")"
+  destination="$2"
+  is_installed "$app" || {
+    msg_error "${APP_LABEL[$app]} is not installed"
+    return 1
+  }
+  systemctl is-active --quiet "$app" || {
+    msg_error "${APP_LABEL[$app]} must be running to create a native backup"
+    return 1
+  }
+  configure_app_api "$app" || return
+
+  msg_info "Creating ${APP_LABEL[$app]} Native Backup"
+  response="$(curl -fsSL \
+    -H "X-Api-Key: ${APP_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -X POST \
+    -d '{"name":"Backup"}' \
+    "${APP_API_URL}/command")" || return
+  command_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))' <<<"$response")" || return
+  [[ "$command_id" =~ ^[0-9]+$ ]] || {
+    msg_error "${APP_LABEL[$app]} did not return a backup command ID"
+    return 1
+  }
+  wait_for_app_command "$command_id" || return
+
+  response="$(curl -fsSL -H "X-Api-Key: ${APP_API_KEY}" "${APP_API_URL}/system/backup")" || return
+  backup_record="$(python3 -c '
+import json, sys
+items = [item for item in json.load(sys.stdin) if str(item.get("type", "")).lower() == "manual" or str(item.get("path", "")).startswith("/backup/manual/")]
+items.sort(key=lambda item: item.get("time", ""), reverse=True)
+if items:
+    print(f"{items[0].get('"'"'path'"'"', '')}\t{items[0].get('"'"'name'"'"', '')}")
+' <<<"$response")" || return
+  IFS=$'\t' read -r backup_path backup_name <<<"$backup_record"
+  [[ "$backup_path" == /backup/* && -n "$backup_name" ]] || {
+    msg_error "Unable to locate the new ${APP_LABEL[$app]} backup"
+    return 1
+  }
+
+  install -d -m 0750 "$destination"
+  temp_file="$(mktemp "${destination}/.${app}-backup.XXXXXX")"
+  if ! curl -fsSL -H "X-Api-Key: ${APP_API_KEY}" "${APP_WEB_URL}${backup_path}" -o "$temp_file"; then
+    rm -f "$temp_file"
+    return 1
+  fi
+  if ! validate_backup_zip "$temp_file" "$app"; then
+    rm -f "$temp_file"
+    msg_error "${APP_LABEL[$app]} returned an invalid native backup archive"
+    return 1
+  fi
+  mv "$temp_file" "${destination}/${backup_name}"
+  msg_ok "Created ${APP_LABEL[$app]} backup: ${destination}/${backup_name}"
+}
+
+backup_apps() {
+  local destination="${BASE_DIR}/backups" app failures=0
+  local -a apps=()
+  while (($#)); do
+    case "$1" in
+      --output)
+        (($# >= 2)) || {
+          msg_error "--output requires a directory"
+          return 2
+        }
+        destination="$2"
+        shift 2
+        ;;
+      *) apps+=("$(normalize_app "$1")"); shift ;;
+    esac
+  done
+
+  if ((${#apps[@]} == 0)); then
+    for app in "${BACKUP_APPS[@]}"; do
+      is_installed "$app" && apps+=("$app")
+    done
+  fi
+  ((${#apps[@]} > 0)) || {
+    msg_warn "No applications with native backup support are installed"
+    return 0
+  }
+
+  for app in "${apps[@]}"; do
+    if ! supports_native_backup "$app"; then
+      msg_error "Native backup is not supported for: ${app}"
+      failures=$((failures + 1))
+      continue
+    fi
+    create_native_backup "$app" "${destination%/}/${app}" || failures=$((failures + 1))
+  done
+  ((failures == 0))
+}
+
+restore_native_backup() {
+  local app backup_file safety_dir response
+  app="$(normalize_app "${1:-}")"
+  backup_file="${2:-}"
+  supports_native_backup "$app" || {
+    msg_error "Native restore is supported only for Sonarr and Radarr"
+    return 2
+  }
+  is_installed "$app" || {
+    msg_error "${APP_LABEL[$app]} is not installed"
+    return 1
+  }
+  [[ -f "$backup_file" && -r "$backup_file" && "${backup_file,,}" == *.zip ]] || {
+    msg_error "Provide a readable native ${APP_LABEL[$app]} backup ZIP"
+    return 2
+  }
+  validate_backup_zip "$backup_file" "$app" || {
+    msg_error "The selected file is not a valid Sonarr or Radarr native backup ZIP"
+    return 2
+  }
+  systemctl is-active --quiet "$app" || {
+    msg_error "${APP_LABEL[$app]} must be running to use its native restore API"
+    return 1
+  }
+
+  safety_dir="${BASE_DIR}/backups/pre-restore/${app}"
+  msg_info "Creating Pre-Restore Safety Backup for ${APP_LABEL[$app]}"
+  create_native_backup "$app" "$safety_dir" || {
+    msg_error "Restore cancelled because the safety backup failed"
+    return 1
+  }
+  configure_app_api "$app" || return
+
+  msg_info "Restoring ${APP_LABEL[$app]} from ${backup_file}"
+  response="$(curl -fsSL \
+    -H "X-Api-Key: ${APP_API_KEY}" \
+    -X POST \
+    -F "file=@${backup_file};type=application/zip" \
+    "${APP_API_URL}/system/backup/restore/upload")" || return
+  python3 -c 'import json,sys; assert json.load(sys.stdin).get("restartRequired") is True' <<<"$response" || {
+    msg_error "${APP_LABEL[$app]} did not accept the restore archive"
+    return 1
+  }
+
+  systemctl restart "$app" || return
+  systemctl is-active --quiet "$app" || return
+  msg_ok "Restored ${APP_LABEL[$app]} from ${backup_file}"
 }
 
 acquire_lock() {
@@ -983,6 +1206,10 @@ Usage:
   arrsuite update [app ...]    Update all installed apps, or only named apps
   arrsuite self-update         Update ArrSuite and Community Scripts helpers
   arrsuite version             Show the installed ArrSuite release version
+  arrsuite backup [app ...] [--output directory]
+                               Create native backups for Sonarr and/or Radarr
+  arrsuite restore app backup.zip
+                               Restore a native Sonarr or Radarr backup
   arrsuite list                Show supported apps, ports, and service state
   arrsuite status              Show systemd status for installed apps
   arrsuite help                Show this help
@@ -1022,6 +1249,20 @@ main() {
       ;;
     version|--version|-V)
       show_version
+      ;;
+    backup)
+      acquire_lock
+      shift
+      backup_apps "$@"
+      ;;
+    restore)
+      acquire_lock
+      shift
+      (($# == 2)) || {
+        msg_error "Usage: arrsuite restore sonarr|radarr backup.zip"
+        exit 2
+      }
+      restore_native_backup "$1" "$2"
       ;;
     list)
       show_list
