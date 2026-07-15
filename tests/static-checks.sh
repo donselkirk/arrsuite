@@ -64,6 +64,7 @@ for required in "$bootstrap_script" "$ct_script" "$install_script" "$json_file" 
 done
 
 grep -q 'function update_script()' "$ct_script"
+grep -q 'var_nesting="${var_nesting:-0}"' "$ct_script"
 grep -q 'ARRSUITE_BUILD_FUNC_PATH' "$ct_script"
 grep -q 'ARRSUITE_INSTALL_URL' "$bootstrap_script"
 grep -q 'donselkirk/arrsuite/main' "$bootstrap_script"

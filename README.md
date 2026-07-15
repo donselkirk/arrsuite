@@ -145,6 +145,7 @@ The aggregate defaults are deliberately higher than the individual scripts:
 - 8 GB disk
 - Debian 13
 - unprivileged LXC
+- nesting disabled (the applications run directly in the LXC without Docker)
 
 Users installing only Sonarr and Radarr can reduce the memory in Advanced Settings. Installing all four applications is the reason for the 4 GB default.
 
