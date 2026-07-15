@@ -49,6 +49,14 @@ The installer opens a checklist for application selection and then uses the
 standard Community Scripts container-creation workflow. After installation,
 open an application at `http://<LXC-IP>:<port>`.
 
+To install a specific release instead of following `latest`, use the same
+version in both URLs:
+
+```bash
+ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>" \
+bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/download/<version>/arrsuite.sh)"
+```
+
 The default container resources are:
 
 - 2 CPU cores
@@ -317,10 +325,10 @@ git diff --check
 The suite checks Bash syntax, JSON metadata, embedded artifact synchronization,
 manager behavior, and ShellCheck when available.
 
-Pushes to `main` that change runtime scripts run automated validation and, when
-successful, publish the next GitHub release with generated notes, checksums,
-and installation assets. Documentation-only changes do not create releases.
-Production installs and self-updates always use the latest successful release.
+Every push to `main` runs automated validation and, when successful, publishes
+the next GitHub release with generated notes, checksums, and installation
+assets. Production installs and self-updates use the latest successful release
+unless a specific release URL is explicitly supplied.
 
 ### Integrating Community Scripts changes
 

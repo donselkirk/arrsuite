@@ -139,17 +139,15 @@ systemd startup, release downloads, or web interfaces.
   `https://github.com/donselkirk/arrsuite.git` when the user asks for a change.
 - Use focused commit messages such as `feat: add Prowlarr module` or
   `fix: clear getty credentials in unprivileged LXC`.
-- Runtime-script pushes to `main` must run GitHub Actions validation and create
-  the next patch release with generated change notes and stable assets.
-  Documentation-only changes do not create releases.
-- After every pushed change, provide a cache-bypassing, commit-pinned
-  installation command using the new commit hash:
+- Every push to `main` must run GitHub Actions validation and create the next
+  patch release with generated change notes and stable runtime assets.
+- After every pushed change, verify the generated release and provide a
+  cache-bypassing, version-pinned installation command using that release:
 
 ```bash
-ARRSUITE_REPOSITORY_RAW_URL="https://raw.githubusercontent.com/donselkirk/arrsuite/<commit>" \
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/donselkirk/arrsuite/<commit>/arrsuite.sh)"
+ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>" \
+bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/download/<version>/arrsuite.sh)"
 ```
 
-- For runtime changes, verify the generated release before handoff. When
-  applicable, also provide commands to update or repair an existing LXC
-  without reinstalling it.
+- When applicable, also provide commit-pinned commands to update or repair an
+  existing LXC without reinstalling it.
