@@ -93,6 +93,10 @@ grep -q 'configure_arrsuite_motd' "$install_script"
 grep -q '/opt/arrsuite/installed.apps' "$install_script"
 grep -q 'Installed Applications:' "$install_script"
 grep -q ': >/etc/motd' "$install_script"
+if grep -q 'msg_info "Selecting ArrSuite Applications"' "$install_script"; then
+  echo "Do not run a spinner behind the interactive application checklist." >&2
+  exit 1
+fi
 grep -q 'container-getty@1.service.d/override.conf' "$install_script"
 grep -q 'console-getty.service.d/override.conf' "$install_script"
 grep -q 'exec /usr/local/bin/arrsuite update' "$install_script"

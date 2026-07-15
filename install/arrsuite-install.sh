@@ -766,7 +766,6 @@ EOF_MANAGER
 chmod 0755 /usr/local/bin/arrsuite
 msg_ok "Created ArrSuite Manager"
 
-msg_info "Selecting ArrSuite Applications"
 if [[ -n "${ARRSUITE_APPS:-}" ]]; then
   read -r -a selected_apps <<<"${ARRSUITE_APPS//,/ }"
   /usr/local/bin/arrsuite add "${selected_apps[@]}"
