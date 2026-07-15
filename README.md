@@ -5,6 +5,20 @@ multiple Arr applications directly, without Docker. Choose the applications
 you want during installation, then add, update, restart, back up, or restore
 them later with the `arrsuite` command.
 
+## Built on Community Scripts
+
+ArrSuite depends on the excellent work of the
+[Proxmox VE Community Scripts](https://community-scripts.org/) project. Its
+container-creation helpers, installer conventions, update tooling, and
+individual application scripts provide the foundation that makes this project
+possible.
+
+ArrSuite combines several of those application patterns into one modular LXC
+and adds multi-application selection and management. It is not a replacement
+for Community Scripts. Please visit their website for the official script
+catalog, documentation, project support, and ways to contribute to their
+amazing community-maintained work.
+
 ## Supported applications
 
 | Application | Port | Initial selection | Architecture |
