@@ -39,6 +39,10 @@ Every push to `main` runs GitHub Actions validation. A successful run creates
 the next patch release with generated notes, `SHA256SUMS`, and stable runtime
 assets.
 
+The Markdown files under `wiki/` are the canonical Wiki sources. Changes to
+them on `main` are published automatically by `.github/workflows/wiki.yml`;
+avoid editing the published GitHub Wiki separately.
+
 ## Adding an application
 
 Create `apps/<app>.sh` and its systemd template, then update:

@@ -1,0 +1,50 @@
+name: Publish Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "wiki/**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arrsuite-wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Wiki pages
+        run: |
+          test -s wiki/Home.md
+          find wiki -maxdepth 1 -type f -name '*.md' -print0 |
+            xargs -0 grep -L '^# ' &&
+            exit 1 || true
+
+      - name: Publish Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" \
+            /tmp/arrsuite-wiki
+          find /tmp/arrsuite-wiki -maxdepth 1 -type f -name '*.md' -delete
+          cp wiki/*.md /tmp/arrsuite-wiki/
+          cd /tmp/arrsuite-wiki
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add --all
+          if git diff --cached --quiet; then
+            echo "Wiki is already current."
+          else
+            git commit -m "docs: publish wiki from ${GITHUB_SHA}"
+            git push origin HEAD:master
+          fi

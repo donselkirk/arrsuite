@@ -83,6 +83,8 @@ optional and unchecked. LXC nesting must default to disabled.
 - `wiki/*.md` contains the source for detailed GitHub Wiki documentation. Keep
   the README concise and user-focused; put development, architecture,
   troubleshooting, backup, and upstream-integration detail in the Wiki.
+  `.github/workflows/wiki.yml` publishes these canonical sources to the GitHub
+  Wiki whenever they change on `main`; do not maintain Wiki pages separately.
 - `tests/static-checks.sh` verifies the generated manager and both embedded
   artifacts byte-for-byte. Regenerate whenever a source artifact changes.
 
