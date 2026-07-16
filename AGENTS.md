@@ -80,6 +80,9 @@ optional and unchecked. LXC nesting must default to disabled.
   run the builder after changing a module, source file, or template.
 - `tools/arrsuite-motd.sh` is the standalone copy of the login banner embedded
   in `install/arrsuite-install.sh`.
+- `wiki/*.md` contains the source for detailed GitHub Wiki documentation. Keep
+  the README concise and user-focused; put development, architecture,
+  troubleshooting, backup, and upstream-integration detail in the Wiki.
 - `tests/static-checks.sh` verifies the generated manager and both embedded
   artifacts byte-for-byte. Regenerate whenever a source artifact changes.
 
