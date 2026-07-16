@@ -33,9 +33,10 @@ amazing community-maintained work.
 | Bazarr | 6767 | Optional | amd64, arm64 |
 
 FlareSolverr uses port 8192 in ArrSuite because its usual port conflicts with
-Byparr. Sonarr and Radarr are selected by default; every other application is
-unchecked. LXC nesting is disabled by default because the applications run
-directly inside the container.
+Byparr. The two applications are mutually exclusive and cannot be installed in
+the same ArrSuite LXC. Sonarr and Radarr are selected by default; every other
+application is unchecked. LXC nesting is disabled by default because the
+applications run directly inside the container.
 
 ## Quick start
 

@@ -269,6 +269,13 @@ is_supported() {
   return 1
 }
 
+conflicting_app() {
+  case "$(normalize_app "$1")" in
+    byparr) printf 'flaresolverr' ;;
+    flaresolverr) printf 'byparr' ;;
+  esac
+}
+
 is_installed() {
   local app
   app="$(normalize_app "$1")"
@@ -1472,10 +1479,11 @@ update_app() {
 
 choose_uninstalled_apps() {
   local -a options=()
-  local app selection default_state
+  local app conflict selection default_state
 
   for app in "${SUPPORTED_APPS[@]}"; do
-    if ! is_installed "$app"; then
+    conflict="$(conflicting_app "$app")"
+    if ! is_installed "$app" && { [[ -z "$conflict" ]] || ! is_installed "$conflict"; }; then
       default_state="ON"
       [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" || "$app" == "bazarr" ]] && default_state="OFF"
       options+=("$app" "${APP_DESCRIPTION[$app]}" "$default_state")
@@ -1507,7 +1515,8 @@ choose_uninstalled_apps() {
 
 add_apps() {
   local -a apps=("$@")
-  local app failures=0
+  local app conflict failures=0
+  local -A requested=()
 
   if ((${#apps[@]} == 0)); then
     mapfile -t apps < <(choose_uninstalled_apps)
@@ -1523,6 +1532,11 @@ add_apps() {
 
   for app in "${apps[@]}"; do
     app="$(normalize_app "$app")"
+    [[ -z "$app" ]] || requested["$app"]=1
+  done
+
+  for app in "${apps[@]}"; do
+    app="$(normalize_app "$app")"
     [[ -n "$app" ]] || continue
 
     if ! is_supported "$app"; then
@@ -1533,6 +1547,13 @@ add_apps() {
 
     if is_installed "$app"; then
       msg_ok "${APP_LABEL[$app]} is already installed"
+      continue
+    fi
+
+    conflict="$(conflicting_app "$app")"
+    if [[ -n "$conflict" ]] && { is_installed "$conflict" || [[ -n "${requested[$conflict]:-}" ]]; }; then
+      msg_error "${APP_LABEL[$app]} cannot be installed with ${APP_LABEL[$conflict]}; remove ${conflict} first"
+      failures=$((failures + 1))
       continue
     fi
 

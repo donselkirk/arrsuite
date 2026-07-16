@@ -198,6 +198,23 @@ fi
   exit 1
 }
 
+printf '%s\n' byparr >"$test_root/installed.apps"
+if conflict_output="$(run_manager add flaresolverr 2>&1)"; then
+  echo "FlareSolverr was installed alongside Byparr." >&2
+  exit 1
+fi
+grep -q 'FlareSolverr cannot be installed with Byparr' <<<"$conflict_output"
+grep -Fxq byparr "$test_root/installed.apps"
+
+: >"$test_root/installed.apps"
+if pair_output="$(run_manager add byparr flaresolverr 2>&1)"; then
+  echo "A request containing both Byparr and FlareSolverr unexpectedly succeeded." >&2
+  exit 1
+fi
+grep -q 'Byparr cannot be installed with FlareSolverr' <<<"$pair_output"
+grep -q 'FlareSolverr cannot be installed with Byparr' <<<"$pair_output"
+[[ ! -s "$test_root/installed.apps" ]]
+
 printf '%s\n' sonarr radarr >"$test_root/installed.apps"
 if uninstalled_output="$(run_manager update lidarr 2>&1)"; then
   echo "A targeted update of an uninstalled app unexpectedly succeeded." >&2

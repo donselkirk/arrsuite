@@ -23,6 +23,8 @@ optional and unchecked. LXC nesting must default to disabled.
 ## Required behavior
 
 - Allow initial application selection through the installer checklist.
+- Byparr and FlareSolverr are mutually exclusive. Never offer or install one
+  while the other is installed, and reject a request that selects both.
 - Support `arrsuite add [app ...]`, `arrsuite list`, `arrsuite status [app ...]`, and
   `arrsuite update [app ...]`, `arrsuite restart [app ...]`, plus
   `arrsuite self-update`.
