@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "wiki/**/*.md"
+      - ".github/workflows/wiki.yml"
   workflow_dispatch:
 
 permissions:
@@ -25,9 +26,12 @@ jobs:
       - name: Validate Wiki pages
         run: |
           test -s wiki/Home.md
-          find wiki -maxdepth 1 -type f -name '*.md' -print0 |
-            xargs -0 grep -L '^# ' &&
-            exit 1 || true
+          for page in wiki/*.md; do
+            grep -q '^# ' "$page" || {
+              echo "Wiki page has no top-level heading: $page" >&2
+              exit 1
+            }
+          done
 
       - name: Publish Wiki
         env:
