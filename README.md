@@ -1,8 +1,8 @@
 # ArrSuite Community Script
 
-ArrSuite creates one unprivileged Debian 13 Proxmox LXC that runs multiple Arr
-applications directly, without Docker. Applications can be selected during
-installation and managed later through one `arrsuite` command.
+ArrSuite creates one Proxmox LXC that runs multiple Arr applications directly,
+without Docker. Applications can be selected during installation and managed
+later through one `arrsuite` command.
 
 ArrSuite is built on the excellent work of
 [Proxmox VE Community Scripts](https://community-scripts.org/), reusing its LXC
@@ -11,16 +11,16 @@ wherever practical.
 
 ## Supported applications
 
-| Application | Port | Default | Architecture |
-|---|---:|---|---|
-| Sonarr | 8989 | Selected | amd64, arm64 |
-| Radarr | 7878 | Selected | amd64, arm64 |
-| Lidarr | 8686 | Optional | amd64, arm64 |
-| Prowlarr | 9696 | Optional | amd64 only |
-| Byparr | 8191 | Optional | amd64 only |
-| FlareSolverr | 8192 | Optional | amd64 only |
-| Seerr | 5055 | Optional | amd64, arm64 |
-| Bazarr | 6767 | Optional | amd64, arm64 |
+| Application | Port | Default |
+|---|---:|---|
+| Sonarr | 8989 | Selected |
+| Radarr | 7878 | Selected |
+| Lidarr | 8686 | Optional |
+| Prowlarr | 9696 | Optional |
+| Byparr | 8191 | Optional |
+| FlareSolverr | 8192 | Optional |
+| Seerr | 5055 | Optional |
+| Bazarr | 6767 | Optional |
 
 Byparr and FlareSolverr are mutually exclusive. Sonarr and Radarr are selected
 by default; every other application is unchecked. LXC nesting is disabled by
