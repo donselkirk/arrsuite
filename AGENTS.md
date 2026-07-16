@@ -69,10 +69,15 @@ optional and unchecked. LXC nesting must default to disabled.
 
 - `apps/*.sh` contains the editable application service, install, dependency,
   update, release, data-path, and architecture modules.
+- `templates/systemd/*.service` and `templates/config/*` contain service and
+  application configuration payloads referenced by the modules.
+- `templates/getty/*` and `templates/update.sh` contain installer-created
+  runtime files.
+- `src/arrsuite-install.sh.in` is the editable installer structure.
 - `src/arrsuite-manager.sh.in` contains the shared manager implementation.
 - `tools/build-artifacts.sh` generates `tools/arrsuite-manager` and embeds it in
-  `install/arrsuite-install.sh`. Do not edit generated application blocks
-  directly; run the builder after changing a module or the template.
+  `install/arrsuite-install.sh`. Do not edit either generated artifact directly;
+  run the builder after changing a module, source file, or template.
 - `tools/arrsuite-motd.sh` is the standalone copy of the login banner embedded
   in `install/arrsuite-install.sh`.
 - `tests/static-checks.sh` verifies the generated manager and both embedded

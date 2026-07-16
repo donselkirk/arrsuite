@@ -1,18 +1,6 @@
 write_sonarr_service() {
   cat > /etc/systemd/system/sonarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Sonarr Daemon
-After=syslog.target network.target
-
-[Service]
-Type=simple
-ExecStart=/opt/Sonarr/Sonarr -nobrowser -data=/var/lib/sonarr/
-TimeoutStopSec=20
-KillMode=process
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
+# ARRSUITE_TEMPLATE systemd/sonarr.service
 EOF_SERVICE
 }
 

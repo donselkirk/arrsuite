@@ -1,19 +1,6 @@
 write_radarr_service() {
   cat > /etc/systemd/system/radarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Radarr Daemon
-After=syslog.target network.target
-
-[Service]
-UMask=0002
-Type=simple
-ExecStart=/opt/Radarr/Radarr -nobrowser -data=/var/lib/radarr/
-TimeoutStopSec=20
-KillMode=process
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
+# ARRSUITE_TEMPLATE systemd/radarr.service
 EOF_SERVICE
 }
 

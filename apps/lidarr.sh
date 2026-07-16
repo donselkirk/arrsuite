@@ -1,19 +1,6 @@
 write_lidarr_service() {
   cat > /etc/systemd/system/lidarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Lidarr Daemon
-After=syslog.target network.target
-
-[Service]
-UMask=0002
-Type=simple
-ExecStart=/opt/Lidarr/Lidarr -nobrowser -data=/var/lib/lidarr/
-TimeoutStopSec=20
-KillMode=process
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
+# ARRSUITE_TEMPLATE systemd/lidarr.service
 EOF_SERVICE
 }
 

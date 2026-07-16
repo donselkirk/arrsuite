@@ -12,13 +12,15 @@ artifact_builder="${project_root}/tools/build-artifacts.sh"
 upstream_checker="${project_root}/tools/check-upstream.sh"
 upstream_lock="${project_root}/tools/upstream-lock.json"
 manager_template="${project_root}/src/arrsuite-manager.sh.in"
+installer_template="${project_root}/src/arrsuite-install.sh.in"
 manager_tmp="$(mktemp)"
 motd_tmp="$(mktemp)"
+template_tmp_dir="$(mktemp -d)"
 standalone_manager="${project_root}/tools/arrsuite-manager"
 behavior_test="${project_root}/tests/manager-behavior.sh"
 standalone_motd="${project_root}/tools/arrsuite-motd.sh"
 seerr_backup_tool="${project_root}/tools/seerr-backup.sh"
-trap 'rm -f "$manager_tmp" "$motd_tmp"' EXIT
+trap 'rm -f "$manager_tmp" "$motd_tmp"; rm -rf "$template_tmp_dir"' EXIT
 
 "$artifact_builder" --check
 
@@ -45,6 +47,10 @@ bash -n "$seerr_backup_tool"
 bash -n "$artifact_builder"
 bash -n "$upstream_checker"
 bash -n "$manager_template"
+bash -n "$installer_template"
+for template_script in "${project_root}/templates/update.sh"; do
+  bash -n "$template_script"
+done
 for module in "${project_root}"/apps/*.sh; do
   bash -n "$module"
   app="$(basename "$module" .sh)"
@@ -69,6 +75,53 @@ cmp -s "$motd_tmp" "$standalone_motd" || {
 }
 cmp -s "$manager_tmp" "$standalone_manager" || {
   echo "Standalone ArrSuite manager is out of sync with the embedded manager." >&2
+  exit 1
+}
+
+printf 'Checking generated templates...\n'
+for app in sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr; do
+  awk -v target="/etc/systemd/system/${app}.service" '
+    index($0, "cat > " target " <<") { capture=1; next }
+    capture && /^EOF_SERVICE$/ { exit }
+    capture
+  ' "$standalone_manager" >"${template_tmp_dir}/${app}.service"
+  cmp -s "${template_tmp_dir}/${app}.service" "${project_root}/templates/systemd/${app}.service" || {
+    echo "Generated ${app} service does not match its source template." >&2
+    exit 1
+  }
+done
+awk '
+  /cat > \/etc\/seerr\/seerr.conf <</ { capture=1; next }
+  capture && /^EOF_CONFIG$/ { exit }
+  capture
+' "$standalone_manager" >"${template_tmp_dir}/seerr.conf"
+cmp -s "${template_tmp_dir}/seerr.conf" "${project_root}/templates/config/seerr.conf" || {
+  echo "Generated Seerr configuration does not match its source template." >&2
+  exit 1
+}
+for getty in container-getty console-getty; do
+  marker="EOF_GETTY"
+  service_path="container-getty@1"
+  [[ "$getty" != "console-getty" ]] || marker="EOF_CONSOLE"
+  [[ "$getty" != "console-getty" ]] || service_path="console-getty"
+  awk -v service="$service_path" -v marker="$marker" '
+    index($0, service ".service.d/override.conf <<") { capture=1; next }
+    capture && $0 == marker { exit }
+    capture
+  ' "$install_script" >"${template_tmp_dir}/${getty}.override.conf"
+  cmp -s "${template_tmp_dir}/${getty}.override.conf" \
+    "${project_root}/templates/getty/${getty}.override.conf" || {
+    echo "Generated ${getty} override does not match its source template." >&2
+    exit 1
+  }
+done
+awk '
+  /cat >\/usr\/bin\/update <</ { capture=1; next }
+  capture && /^EOF_UPDATE$/ { exit }
+  capture
+' "$install_script" >"${template_tmp_dir}/update.sh"
+cmp -s "${template_tmp_dir}/update.sh" "${project_root}/templates/update.sh" || {
+  echo "Generated update wrapper does not match its source template." >&2
   exit 1
 }
 
@@ -244,7 +297,7 @@ bash "$behavior_test"
 if command -v shellcheck >/dev/null 2>&1; then
   printf 'Running ShellCheck...\n'
   # SC1090/SC1091: function libraries are generated or downloaded at runtime.
-  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool" "$artifact_builder" "$upstream_checker"
+  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$installer_template" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/templates/update.sh" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool" "$artifact_builder" "$upstream_checker"
 else
   printf 'ShellCheck not installed; skipping it.\n'
 fi

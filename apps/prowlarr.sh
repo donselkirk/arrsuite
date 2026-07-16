@@ -1,19 +1,6 @@
 write_prowlarr_service() {
   cat > /etc/systemd/system/prowlarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Prowlarr Daemon
-After=syslog.target network.target
-
-[Service]
-UMask=0002
-Type=simple
-ExecStart=/opt/Prowlarr/Prowlarr -nobrowser -data=/var/lib/prowlarr/
-TimeoutStopSec=20
-KillMode=process
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
+# ARRSUITE_TEMPLATE systemd/prowlarr.service
 EOF_SERVICE
 }
 

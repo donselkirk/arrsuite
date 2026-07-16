@@ -1,22 +1,6 @@
 write_bazarr_service() {
   cat > /etc/systemd/system/bazarr.service <<'EOF_SERVICE'
-[Unit]
-Description=Bazarr Daemon
-After=syslog.target network.target
-
-[Service]
-WorkingDirectory=/opt/bazarr/
-UMask=0002
-Restart=on-failure
-RestartSec=5
-Type=simple
-ExecStart=/opt/bazarr/venv/bin/python3 /opt/bazarr/bazarr.py
-KillSignal=SIGINT
-TimeoutStopSec=20
-SyslogIdentifier=bazarr
-
-[Install]
-WantedBy=multi-user.target
+# ARRSUITE_TEMPLATE systemd/bazarr.service
 EOF_SERVICE
 }
 

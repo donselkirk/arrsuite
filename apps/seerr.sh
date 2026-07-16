@@ -1,25 +1,10 @@
 write_seerr_service() {
   install -d -m 0755 /etc/seerr
   cat > /etc/seerr/seerr.conf <<'EOF_CONFIG'
-PORT=5055
-HOST=0.0.0.0
+# ARRSUITE_TEMPLATE config/seerr.conf
 EOF_CONFIG
   cat > /etc/systemd/system/seerr.service <<'EOF_SERVICE'
-[Unit]
-Description=Seerr Service
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-EnvironmentFile=/etc/seerr/seerr.conf
-Environment=NODE_ENV=production
-Type=exec
-Restart=on-failure
-WorkingDirectory=/opt/seerr
-ExecStart=/usr/bin/node dist/index.js
-
-[Install]
-WantedBy=multi-user.target
+# ARRSUITE_TEMPLATE systemd/seerr.service
 EOF_SERVICE
 }
 

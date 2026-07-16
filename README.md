@@ -333,11 +333,13 @@ unless a specific release URL is explicitly supplied.
 
 ### Integrating Community Scripts changes
 
-Application-specific code lives in `apps/<app>.sh` rather than being edited in
-the generated manager. Each module contains that application's service,
-dependencies, install logic, update logic, release matching, data paths, and
-architecture rules. Shared manager behavior lives in
-`src/arrsuite-manager.sh.in`.
+Application-specific logic lives in `apps/<app>.sh` rather than being edited in
+the generated manager. Systemd units and other installed-file payloads live in
+`templates/`, shared manager behavior lives in `src/arrsuite-manager.sh.in`,
+and the editable installer structure lives in `src/arrsuite-install.sh.in`.
+`tools/build-artifacts.sh` combines these sources into the standalone manager
+and the self-contained `install/arrsuite-install.sh` release artifact. Generated
+files should not be edited directly.
 
 `tools/upstream-lock.json` records the exact Community Scripts install and CT
 script blobs last reviewed for every application. A weekly GitHub Actions check
