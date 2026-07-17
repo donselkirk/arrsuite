@@ -43,6 +43,16 @@ The Markdown files under `wiki/` are the canonical Wiki sources. Changes to
 them on `main` are published automatically by `.github/workflows/wiki.yml`;
 avoid editing the published GitHub Wiki separately.
 
+## Install a specific release
+
+Version-pinned installation is intended for development and regression
+testing. Use the same release base URL for the bootstrap and all assets:
+
+```bash
+export ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>"
+bash -c "$(curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh")"
+```
+
 ## Adding an application
 
 Create `apps/<app>.sh` and its systemd template, then update:

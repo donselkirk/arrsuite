@@ -37,13 +37,6 @@ bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/latest/dow
 Default resources are 2 CPU cores, 6144 MB RAM, and a 16 GB disk. Mount media
 and download storage separately from the LXC root disk.
 
-To install a specific release:
-
-```bash
-export ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>"
-bash -c "$(curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh")"
-```
-
 ## Common commands
 
 Run these inside the ArrSuite LXC:

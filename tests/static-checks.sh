@@ -301,8 +301,12 @@ if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then
   echo "README must not hard-code an ArrSuite version number." >&2
   exit 1
 fi
-grep -q '^export ARRSUITE_RELEASE_BASE_URL=' "${project_root}/README.md"
-grep -q 'curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh"' "${project_root}/README.md"
+if grep -q 'ARRSUITE_RELEASE_BASE_URL' "${project_root}/README.md"; then
+  echo "Version-pinned installation belongs in development documentation, not README." >&2
+  exit 1
+fi
+grep -q '^export ARRSUITE_RELEASE_BASE_URL=' "${project_root}/wiki/Building-and-Development.md"
+grep -q 'curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh"' "${project_root}/wiki/Building-and-Development.md"
 grep -q '^export ARRSUITE_RELEASE_BASE_URL=' "${project_root}/AGENTS.md"
 grep -q 'curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh"' "${project_root}/AGENTS.md"
 
