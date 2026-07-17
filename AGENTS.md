@@ -157,8 +157,8 @@ systemd startup, release downloads, or web interfaces.
   cache-bypassing, version-pinned installation command using that release:
 
 ```bash
-ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>" \
-bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/download/<version>/arrsuite.sh)"
+export ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>"
+bash -c "$(curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh")"
 ```
 
 - When applicable, also provide commit-pinned commands to update or repair an

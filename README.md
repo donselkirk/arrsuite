@@ -40,8 +40,8 @@ and download storage separately from the LXC root disk.
 To install a specific release:
 
 ```bash
-ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>" \
-bash -c "$(curl -fsSL https://github.com/donselkirk/arrsuite/releases/download/<version>/arrsuite.sh)"
+export ARRSUITE_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/<version>"
+bash -c "$(curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh")"
 ```
 
 ## Common commands
