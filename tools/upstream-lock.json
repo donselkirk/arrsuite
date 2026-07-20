@@ -4,11 +4,11 @@
   "applications": {
     "sonarr": {
       "install": { "repository": "community-scripts/ProxmoxVED", "path": "install/sonarr-install.sh", "blob": "4027fb2a44ad9e35096c4e2f0737e01c76db6784" },
-      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/sonarr.sh", "blob": "24270642d7220a76df3827dad739fa3c3f12d96e" }
+      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/sonarr.sh", "blob": "aa97f16138a39d93501eaed3a75f23af333e912c" }
     },
     "radarr": {
       "install": { "repository": "community-scripts/ProxmoxVED", "path": "install/radarr-install.sh", "blob": "3ac0072c332163e63a1916818b6832dbacd9f30e" },
-      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/radarr.sh", "blob": "014dbfd16d95033c476411cdd1b197b0dbcde8ab" }
+      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/radarr.sh", "blob": "13a6d38c70d2fd6a3b75160d756dd4463e91ca13" }
     },
     "lidarr": {
       "install": { "repository": "community-scripts/ProxmoxVE", "path": "install/lidarr-install.sh", "blob": "83bc66ac1ed94d6afb9dbf7ead3639b4b6f438c0" },
@@ -16,7 +16,7 @@
     },
     "prowlarr": {
       "install": { "repository": "community-scripts/ProxmoxVED", "path": "install/prowlarr-install.sh", "blob": "3c8354044ea356b965f777886dadee95e97a495e" },
-      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/prowlarr.sh", "blob": "0f0cc7bd923e81f4b83203f13b87ebfc72227f2a" }
+      "update": { "repository": "community-scripts/ProxmoxVED", "path": "ct/prowlarr.sh", "blob": "7144547482f61325454a844943f9e0e3b5f50a1e" }
     },
     "byparr": {
       "install": { "repository": "community-scripts/ProxmoxVE", "path": "install/byparr-install.sh", "blob": "daa4f44ef54c123e25928f1d6e3c65fb491d1fc2" },
