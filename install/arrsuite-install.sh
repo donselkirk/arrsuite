@@ -1059,7 +1059,7 @@ install_prowlarr() {
   fi
 
   msg_info "Installing Prowlarr Dependencies"
-  $STD apt install -y sqlite3 || return
+  $STD apt install -y sqlite3 libicu-dev || return
   msg_ok "Installed Prowlarr Dependencies"
 
   fetch_and_deploy_gh_release \
@@ -1080,6 +1080,7 @@ install_prowlarr() {
 }
 
 update_prowlarr() {
+  $STD apt install -y libicu-dev || return
   if check_for_gh_release "prowlarr" "Prowlarr/Prowlarr"; then
     staged_prebuilt_update prowlarr prowlarr Prowlarr/Prowlarr /opt/Prowlarr \
       "Prowlarr.master*linux-core-x64.tar.gz" 0775 || return
@@ -1375,7 +1376,7 @@ UMask=0002
 Restart=on-failure
 RestartSec=5
 Type=simple
-ExecStart=/opt/bazarr/venv/bin/python3 /opt/bazarr/bazarr.py
+ExecStart=/opt/bazarr/venv/bin/python3 /opt/bazarr/bazarr.py -c /var/lib/bazarr
 KillSignal=SIGINT
 TimeoutStopSec=20
 SyslogIdentifier=bazarr
@@ -1392,6 +1393,34 @@ configure_bazarr() {
   sed -i.bak 's/--only-binary=Pillow//g' "${app_dir}/requirements.txt"
   $STD uv venv --clear "${app_dir}/venv" --python 3.12 || return
   $STD uv pip install -r "${app_dir}/requirements.txt" --python "${app_dir}/venv/bin/python3" || return
+  $STD uv pip install psycopg2-binary --python "${app_dir}/venv/bin/python3" || return
+}
+
+migrate_bazarr_data() {
+  local legacy_dir=/opt/bazarr/data data_dir=/var/lib/bazarr
+  grep -qE -- 'bazarr\.py.*[[:space:]](-c|--config)([[:space:]]|=)' /etc/systemd/system/bazarr.service 2>/dev/null && return
+
+  if [[ -d "$legacy_dir" && ! -L "$legacy_dir" && -n "$(ls -A "$data_dir" 2>/dev/null)" ]]; then
+    msg_error "$legacy_dir and $data_dir both contain data; refusing to merge them. Keep the copy you want in $data_dir, remove $legacy_dir, then run the update again."
+    return 1
+  fi
+
+  msg_info "Moving Bazarr data to $data_dir"
+  systemctl stop bazarr || return
+  if [[ -L "$legacy_dir" ]]; then
+    rm -f "$legacy_dir"
+  elif [[ -d "$legacy_dir" ]]; then
+    if ! cp -a "$legacy_dir"/. "$data_dir"/; then
+      systemctl start bazarr || true
+      msg_error "Could not copy $legacy_dir to $data_dir; nothing was removed."
+      return 1
+    fi
+    rm -rf "$legacy_dir"
+  fi
+  write_bazarr_service
+  systemctl daemon-reload
+  systemctl start bazarr || return
+  msg_ok "Moved Bazarr data to $data_dir"
 }
 
 install_bazarr() {
@@ -1416,6 +1445,7 @@ install_bazarr() {
 
 update_bazarr() {
   local stage_dir=/opt/bazarr.arrsuite-new previous_dir=/opt/bazarr.arrsuite-previous stage_home=/opt/bazarr.arrsuite-home
+  migrate_bazarr_data || return
   if check_for_gh_release "bazarr" "morpheus65535/bazarr"; then
     rm -rf "$stage_dir" "$stage_home"
     install -d -m 0700 "$stage_home"
