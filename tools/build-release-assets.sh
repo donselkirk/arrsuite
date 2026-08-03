@@ -24,6 +24,9 @@ done
 
 (
   cd "$output_dir"
-  sha256sum VERSION *.sh arrsuite-manager *.func >SHA256SUMS
+  sha256sum VERSION arrsuite-manager >SHA256SUMS
+  for asset in *.sh *.func; do
+    sha256sum -- "$asset" >>SHA256SUMS
+  done
   sha256sum -c SHA256SUMS >/dev/null
 )
