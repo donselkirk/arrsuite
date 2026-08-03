@@ -2,7 +2,7 @@
 
 # Copyright (c) 2021-2026 community-scripts ORG
 # Author: Don Selkirk
-# License: MIT | https://github.com/community-scripts/ProxmoxVED/raw/main/LICENSE
+# License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
 # Source: https://wiki.servarr.com/
 
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
@@ -1798,7 +1798,7 @@ self_update() {
   fi
   update_url="${update_url:-$DEFAULT_UPDATE_BASE_URL}"
   update_url="${update_url%/}"
-  community_url="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main}"
+  community_url="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}"
   community_url="${community_url%/}"
 
   temp_dir="$(mktemp -d)"

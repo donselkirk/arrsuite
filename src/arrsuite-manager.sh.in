@@ -1075,7 +1075,7 @@ self_update() {
   fi
   update_url="${update_url:-$DEFAULT_UPDATE_BASE_URL}"
   update_url="${update_url%/}"
-  community_url="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main}"
+  community_url="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}"
   community_url="${community_url%/}"
 
   temp_dir="$(mktemp -d)"

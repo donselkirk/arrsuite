@@ -4,7 +4,7 @@
 set +u
 set -Eeo pipefail
 
-readonly COMMUNITY_RAW_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main}"
+readonly COMMUNITY_RAW_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}"
 readonly DEFAULT_RELEASE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/latest/download"
 
 if [[ -n "${ARRSUITE_REPOSITORY_RAW_URL:-}" ]]; then
@@ -32,7 +32,7 @@ curl -fsSL "${COMMUNITY_RAW_URL}/misc/build.func" -o "$build_func"
 # shellcheck disable=SC2016 # Match literal variable references in build.func.
 sed -i \
   -e 's|"$COMMUNITY_SCRIPTS_URL/install/${var_install}.sh"|"$ARRSUITE_INSTALL_URL"|g' \
-  -e 's|"https://raw.githubusercontent.com/community-scripts/ProxmoxVED/main/install/${var_install}.sh"|"$ARRSUITE_INSTALL_URL"|g' \
+  -e 's|"https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/install/${var_install}.sh"|"$ARRSUITE_INSTALL_URL"|g' \
   "$build_func"
 
 # shellcheck disable=SC2016 # Verify the literal reference inserted above.
