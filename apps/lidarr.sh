@@ -28,6 +28,7 @@ install_lidarr() {
 
 update_lidarr() {
   if check_for_gh_release "lidarr" "Lidarr/Lidarr"; then
+    create_pre_update_backup lidarr || return
     staged_prebuilt_update lidarr lidarr Lidarr/Lidarr /opt/Lidarr \
       "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Lidarr"

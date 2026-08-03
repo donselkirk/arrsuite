@@ -10,6 +10,7 @@ release_workflow="${project_root}/.github/workflows/release.yml"
 upstream_workflow="${project_root}/.github/workflows/upstream-check.yml"
 wiki_workflow="${project_root}/.github/workflows/wiki.yml"
 artifact_builder="${project_root}/tools/build-artifacts.sh"
+release_builder="${project_root}/tools/build-release-assets.sh"
 upstream_checker="${project_root}/tools/check-upstream.sh"
 upstream_lock="${project_root}/tools/upstream-lock.json"
 manager_template="${project_root}/src/arrsuite-manager.sh.in"
@@ -19,6 +20,7 @@ motd_tmp="$(mktemp)"
 template_tmp_dir="$(mktemp -d)"
 standalone_manager="${project_root}/tools/arrsuite-manager"
 behavior_test="${project_root}/tests/manager-behavior.sh"
+bootstrap_test="${project_root}/tests/bootstrap-behavior.sh"
 standalone_motd="${project_root}/tools/arrsuite-motd.sh"
 seerr_backup_tool="${project_root}/tools/seerr-backup.sh"
 trap 'rm -f "$manager_tmp" "$motd_tmp"; rm -rf "$template_tmp_dir"' EXIT
@@ -43,9 +45,11 @@ awk '
 bash -n "$manager_tmp"
 bash -n "$standalone_manager"
 bash -n "$behavior_test"
+bash -n "$bootstrap_test"
 bash -n "$standalone_motd"
 bash -n "$seerr_backup_tool"
 bash -n "$artifact_builder"
+bash -n "$release_builder"
 bash -n "$upstream_checker"
 bash -n "$manager_template"
 bash -n "$installer_template"
@@ -58,6 +62,10 @@ for module in "${project_root}"/apps/*.sh; do
   grep -q "write_${app}_service()" "$module"
   grep -q "install_${app}()" "$module"
   grep -q "update_${app}()" "$module"
+done
+for helper in build.func install.func tools.func core.func api.func error_handler.func; do
+  bash -n "${project_root}/vendor/community-scripts/misc/${helper}"
+  grep -q "\"${helper}\"" "$upstream_lock"
 done
 
 awk '
@@ -80,7 +88,7 @@ cmp -s "$manager_tmp" "$standalone_manager" || {
 }
 
 printf 'Checking generated templates...\n'
-for app in sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr; do
+for app in sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr cleanuparr; do
   awk -v target="/etc/systemd/system/${app}.service" '
     index($0, "cat > " target " <<") { capture=1; next }
     capture && /^EOF_SERVICE$/ { exit }
@@ -144,8 +152,11 @@ grep -q 'var_ram="${var_ram:-6144}"' "$ct_script"
 grep -q 'var_disk="${var_disk:-16}"' "$ct_script"
 grep -q 'ARRSUITE_BUILD_FUNC_PATH' "$ct_script"
 grep -q 'ARRSUITE_INSTALL_URL' "$bootstrap_script"
+grep -q 'ARRSUITE_HELPER_BASE_URL' "$bootstrap_script"
+grep -q 'sha256sum -c --ignore-missing SHA256SUMS' "$bootstrap_script"
+grep -q 'releases/download/$(<"$version_file")' "$bootstrap_script"
 grep -q 'community-scripts/ProxmoxVE/main/misc/build.func' "$ct_script"
-grep -q 'community-scripts/ProxmoxVE/main}' "$bootstrap_script"
+grep -q 'DEFAULT_COMMUNITY_RAW_URL="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main"' "$bootstrap_script"
 grep -q 'releases/latest/download' "$bootstrap_script"
 grep -q 'ARRSUITE_REPOSITORY_RAW_URL' "$bootstrap_script"
 if grep -Eq '^set -[^[:space:]]*u' "$bootstrap_script"; then
@@ -168,13 +179,15 @@ grep -q 'Unknown command: $1' "$install_script"
 grep -q '^trap - ERR$' "$install_script"
 grep -q '^main "$@"$' "$install_script"
 grep -q 'SHA256SUMS' "$install_script"
+grep -q 'helper bundle failed checksum validation' "$install_script"
 grep -q 'staged_prebuilt_update()' "$install_script"
 grep -q 'arrsuite restart \[app ...\]' "$install_script"
 grep -q 'fetch_and_deploy_gh_release' "$install_script"
 grep -q 'community-tools.sh' "$install_script"
+grep -q 'file://${BASE_DIR}/lib' "$install_script"
 grep -q 'community-scripts/ProxmoxVE/main}' "$install_script"
 grep -q 'apt install -y python3 whiptail' "$install_script"
-grep -q 'SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr)' "$install_script"
+grep -q 'SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr cleanuparr)' "$install_script"
 grep -q 'conflicting_app()' "$install_script"
 grep -q 'Byparr.*cannot be installed with.*FlareSolverr\|cannot be installed with.*APP_LABEL' "$install_script"
 grep -q 'install_lidarr()' "$install_script"
@@ -208,7 +221,16 @@ grep -q 'migrate_bazarr_data()' "$install_script"
 grep -q 'bazarr.py -c /var/lib/bazarr' "$install_script"
 grep -A2 'update_prowlarr()' "$install_script" | grep -q 'apt install -y libicu-dev'
 grep -q 'PYTHON_VERSION="3.12"' "$install_script"
-grep -q '\[\[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" || "$app" == "bazarr" \]\] && default_state="OFF"' "$install_script"
+grep -q 'install_cleanuparr()' "$install_script"
+grep -q 'update_cleanuparr()' "$install_script"
+grep -q 'Cleanuparr/Cleanuparr' "$install_script"
+grep -q 'PORT=11011' "$install_script"
+grep -q 'CLEANUPARR_CONFIG_PATH=/etc/cleanuparr' "$install_script"
+grep -q 'Cleanuparr: 11011' "${project_root}/AGENTS.md"
+grep -q '| Cleanuparr | 11011 | Optional |' "${project_root}/README.md"
+grep -q 'Cleanuparr.*`/opt/cleanuparr`.*`/etc/cleanuparr`' "${project_root}/wiki/Architecture.md"
+grep -q 'pre-update/<app>' "${project_root}/wiki/Backup-and-Restore.md"
+grep -q '\[\[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" || "$app" == "bazarr" || "$app" == "cleanuparr" \]\] && default_state="OFF"' "$install_script"
 grep -q 'check_for_gh_release' "$install_script"
 grep -q 'self_update()' "$install_script"
 grep -q 'Updated ArrSuite Runtime to ${release_version}' "$install_script"
@@ -229,6 +251,15 @@ if grep -q 'Creating Pre-Restore Safety Backup\|backups/pre-restore' "$install_s
 fi
 grep -q 'create_seerr_backup()' "$install_script"
 grep -q 'restore_seerr_backup()' "$install_script"
+grep -q 'create_pre_update_backup()' "$install_script"
+for app in sonarr radarr lidarr prowlarr seerr bazarr; do
+  grep -q "create_pre_update_backup ${app}" "$install_script"
+done
+grep -q 'cp -a "$previous_dir/config" "$stage_dir/config"' "$install_script"
+if grep -q 'mv "$previous_dir/config" "$stage_dir/config"' "$install_script"; then
+  echo "Seerr updates must copy configuration while retaining the rollback source." >&2
+  exit 1
+fi
 grep -q 'create_bazarr_backup()' "$install_script"
 grep -q 'restore_bazarr_backup()' "$install_script"
 grep -q '\[prowlarr\]="v1"' "$install_script"
@@ -283,6 +314,10 @@ grep -q '## Important changes' "$release_workflow"
 grep -q -- '--notes-file dist/RELEASE_NOTES.md' "$release_workflow"
 grep -q 'dist/arrsuite-install.sh' "$release_workflow"
 grep -q 'dist/seerr-backup.sh' "$release_workflow"
+grep -q 'build-release-assets.sh' "$release_workflow"
+grep -q 'dist/build.func' "$release_workflow"
+grep -q 'dist/error_handler.func' "$release_workflow"
+grep -q 'gh release download' "$release_workflow"
 grep -q -- '--docker CONTAINER' "$seerr_backup_tool"
 grep -q 'docker stop' "$seerr_backup_tool"
 grep -q 'docker cp' "$seerr_backup_tool"
@@ -291,6 +326,7 @@ grep -q 'os.path.islink' "$seerr_backup_tool"
 grep -q 'dist/VERSION' "$release_workflow"
 grep -q '^name: Check Community Scripts Upstream$' "$upstream_workflow"
 grep -q 'schedule:' "$upstream_workflow"
+grep -q '17 9 \* \* \*' "$upstream_workflow"
 grep -q 'bash tools/check-upstream.sh' "$upstream_workflow"
 grep -q 'actions/upload-artifact@v4' "$upstream_workflow"
 grep -q '^name: Publish Wiki$' "$wiki_workflow"
@@ -306,6 +342,18 @@ done
 grep -q 'ARRSUITE_APP_MODULES' "$manager_template"
 grep -q 'community-scripts/ProxmoxVED' "$upstream_lock"
 grep -q 'community-scripts/ProxmoxVE' "$upstream_lock"
+grep -q '"helpers"' "$upstream_lock"
+grep -q 'vendored_sha256' "$upstream_lock"
+
+release_fixture="$(mktemp -d)"
+"$release_builder" v9.9.9 "$release_fixture"
+for asset in VERSION SHA256SUMS arrsuite.sh arrsuite-ct.sh arrsuite-install.sh arrsuite-manager \
+  arrsuite-motd.sh fix-console-autologin.sh seerr-backup.sh \
+  build.func install.func tools.func core.func api.func error_handler.func; do
+  [[ -s "${release_fixture}/${asset}" ]]
+done
+(cd "$release_fixture" && sha256sum -c SHA256SUMS >/dev/null)
+rm -rf "$release_fixture"
 if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then
   echo "README must not hard-code an ArrSuite version number." >&2
   exit 1
@@ -320,12 +368,13 @@ grep -q '^export ARRSUITE_RELEASE_BASE_URL=' "${project_root}/AGENTS.md"
 grep -q 'curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh"' "${project_root}/AGENTS.md"
 
 printf 'Running manager behavior tests...\n'
+bash "$bootstrap_test"
 bash "$behavior_test"
 
 if command -v shellcheck >/dev/null 2>&1; then
   printf 'Running ShellCheck...\n'
   # SC1090/SC1091: function libraries are generated or downloaded at runtime.
-  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$installer_template" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$behavior_test" "${project_root}/templates/update.sh" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool" "$artifact_builder" "$upstream_checker"
+  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$installer_template" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$bootstrap_test" "$behavior_test" "${project_root}/templates/update.sh" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool" "$artifact_builder" "$release_builder" "$upstream_checker"
 else
   printf 'ShellCheck not installed; skipping it.\n'
 fi

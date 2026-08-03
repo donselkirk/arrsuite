@@ -12,6 +12,8 @@ mkdir -p "$test_root/bin" "$test_root/lib" "$test_root/run" "$test_root/runtime"
   "$test_root/app-data/prowlarr" "$test_root/app-data/bazarr/db" \
   "$test_root/seerr-config/db" \
   "$test_root/seerr-config/logs"
+mkdir -p "$test_root/cleanuparr-config" "$test_root/cleanuparr-logs"
+printf 'cleanuparr-config-fixture\n' >"$test_root/cleanuparr-config/cleanuparr.db"
 printf 'seerr-database-fixture\n' >"$test_root/seerr-config/db/db.sqlite3"
 printf '{"initialized":true}\n' >"$test_root/seerr-config/settings.json"
 ln -s /tmp/seerr-machine-logs.json "$test_root/seerr-config/logs/.machinelogs.json"
@@ -38,6 +40,8 @@ fetch_and_deploy_gh_release() { return 1; }
 check_for_gh_release() { return 1; }
 setup_uv() { return 1; }
 EOF_TOOLS
+cp "$test_root/lib/community-functions.sh" "$test_root/lib/community-functions.fixture"
+cp "$test_root/lib/community-tools.sh" "$test_root/lib/community-tools.fixture"
 cat >"$test_root/bin/curl" <<'EOF_CURL'
 #!/usr/bin/env bash
 set -e
@@ -102,8 +106,14 @@ PYTHON
     printf '%s  arrsuite-motd.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/arrsuite-motd.sh" | awk '{print $1}')" >>"$output"
     printf '%s  fix-console-autologin.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/fix-console-autologin.sh" | awk '{print $1}')" >>"$output"
     printf '%s  VERSION\n' "$(sha256sum "$version_file" | awk '{print $1}')" >>"$output"
+    for helper in build.func install.func tools.func core.func api.func error_handler.func; do
+      printf '%s  %s\n' "$(sha256sum "${PROJECT_ROOT}/vendor/community-scripts/misc/${helper}" | awk '{print $1}')" "$helper" >>"$output"
+    done
     rm -f "$version_file"
     exit 0
+    ;;
+  */build.func|*/install.func|*/tools.func|*/core.func|*/api.func|*/error_handler.func)
+    source_file="${PROJECT_ROOT}/vendor/community-scripts/misc/${url##*/}"
     ;;
   */misc/install.func) source_file="${TEST_ROOT}/lib/community-functions.sh" ;;
   */misc/tools.func) source_file="${TEST_ROOT}/lib/community-tools.sh" ;;
@@ -147,6 +157,8 @@ EOF_DOCKER
 chmod 0755 "$test_root/bin/docker"
 
 run_manager() {
+  cp "$test_root/lib/community-functions.fixture" "$test_root/lib/community-functions.sh"
+  cp "$test_root/lib/community-tools.fixture" "$test_root/lib/community-tools.sh"
   ARRSUITE_BASE_DIR="$test_root" \
     ARRSUITE_ALLOW_NON_ROOT=1 \
     ARRSUITE_SKIP_SELF_UPDATE=1 \
@@ -161,6 +173,8 @@ run_manager() {
     ARRSUITE_SYSTEMD_UNIT_DIR="$test_root/systemd" \
     ARRSUITE_SEERR_CONFIG_DIR="${ARRSUITE_TEST_SEERR_CONFIG_DIR:-$test_root/seerr-config}" \
     ARRSUITE_SEERR_SYSTEM_CONFIG_DIR="$test_root/etc-seerr" \
+    ARRSUITE_CLEANUPARR_CONFIG_DIR="$test_root/cleanuparr-config" \
+    ARRSUITE_CLEANUPARR_LOG_DIR="$test_root/cleanuparr-logs" \
     ARRSUITE_RELEASE_MARKER_ROOT="$test_root/runtime" \
     PROJECT_ROOT="$project_root" \
     TEST_ROOT="$test_root" \
@@ -177,6 +191,12 @@ grep -q '^Byparr[[:space:]]\+no[[:space:]]\+8191' <<<"$list_output"
 grep -q '^FlareSolverr[[:space:]]\+no[[:space:]]\+8192' <<<"$list_output"
 grep -q '^Seerr[[:space:]]\+no[[:space:]]\+5055' <<<"$list_output"
 grep -q '^Bazarr[[:space:]]\+no[[:space:]]\+6767' <<<"$list_output"
+grep -q '^Cleanuparr[[:space:]]\+no[[:space:]]\+11011' <<<"$list_output"
+list_header="$(sed -n '1p' <<<"$list_output")"
+flaresolverr_row="$(grep '^FlareSolverr' <<<"$list_output")"
+list_header_prefix="${list_header%%INSTALLED*}"
+flaresolverr_prefix="${flaresolverr_row%%no*}"
+[[ "${#list_header_prefix}" -eq "${#flaresolverr_prefix}" ]]
 
 if unknown_output="$(run_manager does-not-exist 2>&1)"; then
   echo "An unknown command unexpectedly succeeded." >&2
@@ -259,6 +279,20 @@ if grep -Fxq bazarr "$test_root/installed.apps"; then
   exit 1
 fi
 grep -q '^disable --now bazarr$' "$test_root/systemctl.log"
+
+printf '%s\n' cleanuparr >"$test_root/installed.apps"
+mkdir -p "$test_root/opt/cleanuparr"
+printf 'program fixture\n' >"$test_root/opt/cleanuparr/Cleanuparr"
+printf '[Unit]\n' >"$test_root/systemd/cleanuparr.service"
+run_manager remove cleanuparr --yes
+[[ ! -e "$test_root/opt/cleanuparr" ]]
+[[ -f "$test_root/cleanuparr-config/cleanuparr.db" ]]
+[[ -d "$test_root/cleanuparr-logs" ]]
+printf '%s\n' cleanuparr >"$test_root/installed.apps"
+mkdir -p "$test_root/opt/cleanuparr"
+run_manager remove cleanuparr --purge --yes
+[[ ! -e "$test_root/cleanuparr-config" ]]
+[[ ! -e "$test_root/cleanuparr-logs" ]]
 
 printf '%s\n' seerr >"$test_root/installed.apps"
 mkdir -p "$test_root/opt/seerr/config/db"
@@ -381,6 +415,11 @@ grep -qx 'radarr' "$test_root/restarts.log"
 
 self_update_output="$(run_manager self-update)"
 grep -q 'Updated ArrSuite Runtime to v9.8.7' <<<"$self_update_output"
+# A legacy installation has no local helper bundle. Self-update must repair it
+# in place without requiring a reinstall.
+for helper in build.func install.func tools.func core.func api.func error_handler.func; do
+  cmp -s "$project_root/vendor/community-scripts/misc/$helper" "$test_root/lib/$helper"
+done
 current_output="$(run_manager self-update)"
 grep -q 'ArrSuite Runtime is Already Current at v9.8.7' <<<"$current_output"
 export ARRSUITE_TEST_MANAGER_PATH=/proc/1/arrsuite-test-unwritable

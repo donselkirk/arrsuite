@@ -27,6 +27,8 @@ The suite covers:
 - generated artifact synchronization;
 - byte-for-byte embedded template checks;
 - manager behavior;
+- the exact release payload and checksums;
+- reviewed helper provenance and local integrity;
 - ShellCheck when installed.
 
 Local checks do not prove LXC creation, systemd startup, release downloads, or
@@ -36,8 +38,10 @@ Proxmox node.
 ## Releases
 
 Every push to `main` runs GitHub Actions validation. A successful run creates
-the next patch release with generated notes, `SHA256SUMS`, and stable runtime
-assets.
+the next patch release with an Important Changes summary, a full comparison
+link, `SHA256SUMS`, stable runtime assets, and the reviewed Community Scripts
+helper bundle. The workflow downloads the published payload and verifies its
+checksums before declaring the release complete.
 
 The Markdown files under `wiki/` are the canonical Wiki sources. Changes to
 them on `main` are published automatically by `.github/workflows/wiki.yml`;
@@ -63,5 +67,6 @@ Create `apps/<app>.sh` and its systemd template, then update:
 - initial checklist and help output;
 - login banner and CT completion output;
 - JSON metadata, documentation, and tests.
+- reviewed install and update blobs in `tools/upstream-lock.json`.
 
 Base behavior on the current individual Community Scripts implementation.

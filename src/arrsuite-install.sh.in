@@ -79,9 +79,31 @@ install -d -m 0755 /opt/arrsuite/lib
 install -d -m 0755 /opt/arrsuite
 printf '%s\n' "$FUNCTIONS_FILE_PATH" >/opt/arrsuite/lib/community-functions.sh
 chmod 0644 /opt/arrsuite/lib/community-functions.sh
-curl -fsSL "${COMMUNITY_SCRIPTS_URL}/misc/tools.func" \
-  -o /opt/arrsuite/lib/community-tools.sh
-chmod 0644 /opt/arrsuite/lib/community-tools.sh
+helper_base_url="${ARRSUITE_HELPER_BASE_URL:-${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}/misc}"
+helper_stage="$(mktemp -d)"
+for helper in build.func tools.func core.func api.func error_handler.func; do
+  curl -fsSL --retry 3 --retry-all-errors "${helper_base_url}/${helper}" -o "${helper_stage}/${helper}"
+done
+if [[ "$helper_base_url" == https://github.com/donselkirk/arrsuite/releases/download/* ]]; then
+  curl -fsSL --retry 3 --retry-all-errors "${helper_base_url}/SHA256SUMS" -o "${helper_stage}/SHA256SUMS"
+  cp /opt/arrsuite/lib/community-functions.sh "${helper_stage}/install.func"
+  if ! (cd "$helper_stage" \
+      && for helper in build.func install.func tools.func core.func api.func error_handler.func; do
+        grep -q " ${helper}$" SHA256SUMS || exit 1
+      done \
+      && sha256sum -c --ignore-missing SHA256SUMS >/dev/null); then
+    rm -rf "$helper_stage"
+    msg_error "ArrSuite helper bundle failed checksum validation"
+    exit 1
+  fi
+fi
+install -m 0644 "${helper_stage}/tools.func" /opt/arrsuite/lib/community-tools.sh
+install -m 0644 /opt/arrsuite/lib/community-functions.sh /opt/arrsuite/lib/install.func
+install -m 0644 "${helper_stage}/tools.func" /opt/arrsuite/lib/tools.func
+for helper in build.func core.func api.func error_handler.func; do
+  install -m 0644 "${helper_stage}/${helper}" "/opt/arrsuite/lib/${helper}"
+done
+rm -rf "$helper_stage"
 touch /opt/arrsuite/installed.apps
 chmod 0644 /opt/arrsuite/installed.apps
 
@@ -90,7 +112,7 @@ cat > /usr/local/bin/arrsuite <<'EOF_MANAGER'
 EOF_MANAGER
 
 chmod 0755 /usr/local/bin/arrsuite
-printf '%s\n' "https://github.com/donselkirk/arrsuite/releases/latest/download" \
+printf '%s\n' "${ARRSUITE_UPDATE_BASE_URL:-https://github.com/donselkirk/arrsuite/releases/latest/download}" \
   >/opt/arrsuite/update.url
 if [[ -n "${ARRSUITE_VERSION_URL:-}" ]]; then
   if curl -fsSL "$ARRSUITE_VERSION_URL" -o /opt/arrsuite/version \

@@ -5,16 +5,19 @@ adding modular multi-application management.
 
 ## Runtime
 
-1. `arrsuite.sh` loads the current Community Scripts build framework.
+1. `arrsuite.sh` resolves the requested ArrSuite release, verifies its reviewed
+   Community Scripts helper bundle, and loads that release's build framework.
 2. `ct/arrsuite.sh` creates the LXC.
 3. `install/arrsuite-install.sh` installs selected applications.
 4. `/usr/local/bin/arrsuite` manages applications afterward.
 5. `/opt/arrsuite/installed.apps` records successful installations.
 6. `/usr/bin/update` self-updates ArrSuite and updates installed applications.
 
-Production installs and self-updates use stable assets from the latest GitHub
-release. A raw repository URL is available only as an explicit development
-override.
+Production installs and self-updates enter through the latest GitHub release,
+then pin every download to the resolved version. Runtime helpers are retained
+under `/opt/arrsuite/lib` so later commands cannot silently mix Community
+Scripts revisions. Live upstream helpers and raw repository URLs are available
+only as explicit development overrides.
 
 ## Source and generated files
 
@@ -27,6 +30,7 @@ templates/getty/              Console override sources
 templates/config/             Application configuration payloads
 templates/update.sh           Standard update wrapper
 tools/arrsuite-motd.sh        Login banner source
+vendor/community-scripts/    Reviewed upstream helper bundle
 
 tools/arrsuite-manager        Generated manager
 install/arrsuite-install.sh   Generated self-contained installer
@@ -47,3 +51,13 @@ deployment. Editable components remain separated for review and testing.
 | FlareSolverr | `/opt/flaresolverr` | — | `flaresolverr.service` |
 | Seerr | `/opt/seerr` | `/opt/seerr/config` | `seerr.service` |
 | Bazarr | `/opt/bazarr` | `/var/lib/bazarr` | `bazarr.service` |
+| Cleanuparr | `/opt/cleanuparr` | `/etc/cleanuparr` | `cleanuparr.service` |
+
+## Update safety
+
+Program releases are staged before services stop. ArrSuite retains the prior
+program directory until the replacement service is active and rolls back on a
+deployment or startup failure. Stateful applications also create durable
+pre-update backups. Seerr receives additional protection because its data is
+inside its program tree: the prior installation remains intact while its
+configuration is copied into a clean staged release.

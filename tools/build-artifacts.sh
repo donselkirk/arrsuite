@@ -8,7 +8,7 @@ manager="${project_root}/tools/arrsuite-manager"
 installer="${project_root}/install/arrsuite-install.sh"
 motd="${project_root}/tools/arrsuite-motd.sh"
 templates="${project_root}/templates"
-readonly -a modules=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr)
+readonly -a modules=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr cleanuparr)
 check_only=0
 [[ "${1:-}" == "--check" ]] && check_only=1
 

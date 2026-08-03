@@ -100,6 +100,7 @@ if [[ -r "$registry" ]]; then
       flaresolverr) label="FlareSolverr"; port="8192" ;;
       seerr) label="Seerr"; port="5055" ;;
       bazarr) label="Bazarr"; port="6767" ;;
+      cleanuparr) label="Cleanuparr"; port="11011" ;;
       *) continue ;;
     esac
 
@@ -131,9 +132,31 @@ install -d -m 0755 /opt/arrsuite/lib
 install -d -m 0755 /opt/arrsuite
 printf '%s\n' "$FUNCTIONS_FILE_PATH" >/opt/arrsuite/lib/community-functions.sh
 chmod 0644 /opt/arrsuite/lib/community-functions.sh
-curl -fsSL "${COMMUNITY_SCRIPTS_URL}/misc/tools.func" \
-  -o /opt/arrsuite/lib/community-tools.sh
-chmod 0644 /opt/arrsuite/lib/community-tools.sh
+helper_base_url="${ARRSUITE_HELPER_BASE_URL:-${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}/misc}"
+helper_stage="$(mktemp -d)"
+for helper in build.func tools.func core.func api.func error_handler.func; do
+  curl -fsSL --retry 3 --retry-all-errors "${helper_base_url}/${helper}" -o "${helper_stage}/${helper}"
+done
+if [[ "$helper_base_url" == https://github.com/donselkirk/arrsuite/releases/download/* ]]; then
+  curl -fsSL --retry 3 --retry-all-errors "${helper_base_url}/SHA256SUMS" -o "${helper_stage}/SHA256SUMS"
+  cp /opt/arrsuite/lib/community-functions.sh "${helper_stage}/install.func"
+  if ! (cd "$helper_stage" \
+      && for helper in build.func install.func tools.func core.func api.func error_handler.func; do
+        grep -q " ${helper}$" SHA256SUMS || exit 1
+      done \
+      && sha256sum -c --ignore-missing SHA256SUMS >/dev/null); then
+    rm -rf "$helper_stage"
+    msg_error "ArrSuite helper bundle failed checksum validation"
+    exit 1
+  fi
+fi
+install -m 0644 "${helper_stage}/tools.func" /opt/arrsuite/lib/community-tools.sh
+install -m 0644 /opt/arrsuite/lib/community-functions.sh /opt/arrsuite/lib/install.func
+install -m 0644 "${helper_stage}/tools.func" /opt/arrsuite/lib/tools.func
+for helper in build.func core.func api.func error_handler.func; do
+  install -m 0644 "${helper_stage}/${helper}" "/opt/arrsuite/lib/${helper}"
+done
+rm -rf "$helper_stage"
 touch /opt/arrsuite/installed.apps
 chmod 0644 /opt/arrsuite/installed.apps
 
@@ -162,8 +185,10 @@ readonly APP_INSTALL_ROOT="${ARRSUITE_APP_INSTALL_ROOT:-/opt}"
 readonly SYSTEMD_UNIT_DIR="${ARRSUITE_SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
 readonly SEERR_CONFIG_PATH="${ARRSUITE_SEERR_CONFIG_DIR:-/opt/seerr/config}"
 readonly SEERR_SYSTEM_CONFIG_DIR="${ARRSUITE_SEERR_SYSTEM_CONFIG_DIR:-/etc/seerr}"
+readonly CLEANUPARR_CONFIG_PATH="${ARRSUITE_CLEANUPARR_CONFIG_DIR:-/etc/cleanuparr}"
+readonly CLEANUPARR_LOG_PATH="${ARRSUITE_CLEANUPARR_LOG_DIR:-/var/log/cleanuparr}"
 readonly RELEASE_MARKER_ROOT="${ARRSUITE_RELEASE_MARKER_ROOT:-$HOME}"
-readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr)
+readonly -a SUPPORTED_APPS=(sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr cleanuparr)
 
 declare -A APP_LABEL=(
   [sonarr]="Sonarr"
@@ -174,6 +199,7 @@ declare -A APP_LABEL=(
   [flaresolverr]="FlareSolverr"
   [seerr]="Seerr"
   [bazarr]="Bazarr"
+  [cleanuparr]="Cleanuparr"
 )
 
 declare -A APP_DESCRIPTION=(
@@ -185,6 +211,7 @@ declare -A APP_DESCRIPTION=(
   [flaresolverr]="Cloudflare proxy service (port 8192; amd64 only)"
   [seerr]="Media request manager (port 5055)"
   [bazarr]="Subtitle manager (port 6767)"
+  [cleanuparr]="Download cleanup manager (port 11011)"
 )
 
 declare -A APP_PORT=(
@@ -196,6 +223,7 @@ declare -A APP_PORT=(
   [flaresolverr]="8192"
   [seerr]="5055"
   [bazarr]="6767"
+  [cleanuparr]="11011"
 )
 
 declare -A APP_DATA_DIR=(
@@ -204,6 +232,7 @@ declare -A APP_DATA_DIR=(
   [lidarr]="${APP_DATA_ROOT}/lidarr"
   [prowlarr]="${APP_DATA_ROOT}/prowlarr"
   [bazarr]="${APP_DATA_ROOT}/bazarr"
+  [cleanuparr]="$CLEANUPARR_CONFIG_PATH"
 )
 
 declare -A APP_INSTALL_DIR=(
@@ -215,6 +244,7 @@ declare -A APP_INSTALL_DIR=(
   [flaresolverr]="${APP_INSTALL_ROOT}/flaresolverr"
   [seerr]="${APP_INSTALL_ROOT}/seerr"
   [bazarr]="${APP_INSTALL_ROOT}/bazarr"
+  [cleanuparr]="${APP_INSTALL_ROOT}/cleanuparr"
 )
 
 declare -A APP_API_VERSION=(
@@ -241,10 +271,13 @@ readonly -a BACKUP_APPS=(sonarr radarr lidarr prowlarr seerr bazarr)
   exit 1
 }
 
-# Persist the same Community Scripts helper bundle used by the original
-# Sonarr, Radarr, Lidarr, and Byparr installers. This lets future `arrsuite add` and
-# `arrsuite update` operations reuse fetch_and_deploy_gh_release,
+# Persist the same Community Scripts helper bundle used by the individual
+# application installers. This lets future `arrsuite add` and `arrsuite update`
+# operations reuse fetch_and_deploy_gh_release,
 # check_for_gh_release, setup_uv, arch_resolve, and the standard UI functions.
+if [[ -r "${BASE_DIR}/lib/core.func" && -r "${BASE_DIR}/lib/error_handler.func" ]]; then
+  export ARRSUITE_HELPER_BASE_URL="file://${BASE_DIR}/lib"
+fi
 source "$FUNCTIONS_LIBRARY"
 source "$TOOLS_LIBRARY"
 declare -F fetch_and_deploy_gh_release >/dev/null || {
@@ -718,6 +751,7 @@ manifest = {
     "schema": 1,
     "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
 }
+
 with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     archive.writestr("arrsuite-backup.json", json.dumps(manifest, indent=2) + "\n")
     for root, directories, files in os.walk(source):
@@ -742,6 +776,21 @@ PYTHON
     return 1
   fi
   msg_ok "Created Bazarr backup: ${archive}"
+}
+
+create_pre_update_backup() {
+  local app destination
+  app="$(normalize_app "$1")"
+  destination="${BASE_DIR}/backups/pre-update/${app}"
+  case "$app" in
+    seerr) create_seerr_backup "$destination" ;;
+    bazarr) create_bazarr_backup "$destination" ;;
+    sonarr|radarr|lidarr|prowlarr) create_native_backup "$app" "$destination" ;;
+    *)
+      msg_error "Pre-update backup is not supported for: ${app}"
+      return 1
+      ;;
+  esac
 }
 
 validate_bazarr_backup_zip() {
@@ -926,6 +975,7 @@ install_sonarr() {
 
 update_sonarr() {
   if check_for_gh_release "Sonarr" "Sonarr/Sonarr"; then
+    create_pre_update_backup sonarr || return
     staged_prebuilt_update sonarr Sonarr Sonarr/Sonarr /opt/Sonarr \
       "Sonarr.main.*.linux-$(arch_resolve "x64" "arm64").tar.gz" || return
     msg_ok "Updated Sonarr"
@@ -976,6 +1026,7 @@ install_radarr() {
 
 update_radarr() {
   if check_for_gh_release "Radarr" "Radarr/Radarr"; then
+    create_pre_update_backup radarr || return
     staged_prebuilt_update radarr Radarr Radarr/Radarr /opt/Radarr \
       "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Radarr"
@@ -1026,6 +1077,7 @@ install_lidarr() {
 
 update_lidarr() {
   if check_for_gh_release "lidarr" "Lidarr/Lidarr"; then
+    create_pre_update_backup lidarr || return
     staged_prebuilt_update lidarr lidarr Lidarr/Lidarr /opt/Lidarr \
       "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Lidarr"
@@ -1082,6 +1134,7 @@ install_prowlarr() {
 update_prowlarr() {
   $STD apt install -y libicu-dev || return
   if check_for_gh_release "prowlarr" "Prowlarr/Prowlarr"; then
+    create_pre_update_backup prowlarr || return
     staged_prebuilt_update prowlarr prowlarr Prowlarr/Prowlarr /opt/Prowlarr \
       "Prowlarr.master*linux-core-x64.tar.gz" 0775 || return
     msg_ok "Updated Prowlarr"
@@ -1323,6 +1376,7 @@ install_seerr() {
 update_seerr() {
   local stage_dir=/opt/seerr.arrsuite-new previous_dir=/opt/seerr.arrsuite-previous stage_home=/opt/seerr.arrsuite-home
   if check_for_gh_release "seerr" "seerr-team/seerr"; then
+    create_pre_update_backup seerr || return
     rm -rf "$stage_dir" "$stage_home"
     install -d -m 0700 "$stage_home"
     HOME="$stage_home" fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest" "$stage_dir" \
@@ -1331,16 +1385,16 @@ update_seerr() {
     systemctl stop seerr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
     rm -rf "$previous_dir"
     mv /opt/seerr "$previous_dir" || { rm -rf "$stage_dir"; systemctl start seerr || true; return 1; }
-    if [[ -d "$previous_dir/config" ]] && ! mv "$previous_dir/config" "$stage_dir/config"; then
+    if [[ -d "$previous_dir/config" ]]; then
+      rm -rf "$stage_dir/config"
+    fi
+    if [[ -d "$previous_dir/config" ]] && ! cp -a "$previous_dir/config" "$stage_dir/config"; then
       mv "$previous_dir" /opt/seerr
       systemctl start seerr || true
       rm -rf "$stage_dir" "$stage_home"
       return 1
     fi
     if ! mv "$stage_dir" /opt/seerr; then
-      if [[ -d "$stage_dir/config" && ! -d "$previous_dir/config" ]]; then
-        mv "$stage_dir/config" "$previous_dir/config" || true
-      fi
       rm -rf /opt/seerr
       mv "$previous_dir" /opt/seerr
       systemctl start seerr || true
@@ -1349,7 +1403,6 @@ update_seerr() {
     fi
     if ! systemctl start seerr || ! systemctl is-active --quiet seerr; then
       systemctl stop seerr || true
-      [[ -d /opt/seerr/config ]] && mv /opt/seerr/config "$previous_dir/config"
       rm -rf /opt/seerr
       mv "$previous_dir" /opt/seerr
       systemctl start seerr || true
@@ -1447,6 +1500,7 @@ update_bazarr() {
   local stage_dir=/opt/bazarr.arrsuite-new previous_dir=/opt/bazarr.arrsuite-previous stage_home=/opt/bazarr.arrsuite-home
   migrate_bazarr_data || return
   if check_for_gh_release "bazarr" "morpheus65535/bazarr"; then
+    create_pre_update_backup bazarr || return
     rm -rf "$stage_dir" "$stage_home"
     install -d -m 0700 "$stage_home"
     PYTHON_VERSION="3.12" setup_uv || return
@@ -1467,6 +1521,67 @@ update_bazarr() {
   fi
 }
 
+# Generated from apps/cleanuparr.sh. Do not edit this block directly.
+write_cleanuparr_service() {
+  cat > /etc/systemd/system/cleanuparr.service <<'EOF_SERVICE'
+[Unit]
+Description=Cleanuparr Daemon
+After=syslog.target network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cleanuparr
+ExecStart=/opt/cleanuparr/Cleanuparr
+Restart=on-failure
+RestartSec=5
+Environment="PORT=11011"
+Environment="CLEANUPARR_CONFIG_PATH=/etc/cleanuparr"
+Environment="CLEANUPARR_LOGS_PATH=/var/log/cleanuparr"
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+}
+
+create_cleanuparr_pre_update_backup() {
+  local destination="${BASE_DIR}/backups/pre-update/cleanuparr" timestamp archive was_active=0
+  [[ -d "$CLEANUPARR_CONFIG_PATH" ]] || { msg_error "Cleanuparr configuration not found: $CLEANUPARR_CONFIG_PATH"; return 1; }
+  install -d -m 0750 "$destination"
+  timestamp="$(date +%Y.%m.%d_%H.%M.%S)"
+  archive="${destination}/cleanuparr_config_${timestamp}.tar.gz"
+  systemctl is-active --quiet cleanuparr && was_active=1
+  ((was_active == 0)) || systemctl stop cleanuparr || return
+  if ! tar -czf "$archive" -C "$(dirname "$CLEANUPARR_CONFIG_PATH")" "$(basename "$CLEANUPARR_CONFIG_PATH")"; then
+    rm -f "$archive"
+    ((was_active == 0)) || systemctl start cleanuparr || true
+    return 1
+  fi
+  ((was_active == 0)) || systemctl start cleanuparr || return
+  msg_ok "Created Cleanuparr backup: ${archive}"
+}
+
+install_cleanuparr() {
+  msg_info "Installing Cleanuparr"
+  fetch_and_deploy_gh_release "Cleanuparr" "Cleanuparr/Cleanuparr" "prebuild" "latest" \
+    "/opt/cleanuparr" "*linux-$(arch_resolve).zip" || return
+  install -d -m 0755 "$CLEANUPARR_CONFIG_PATH" "$CLEANUPARR_LOG_PATH"
+  write_cleanuparr_service
+  systemctl daemon-reload
+  systemctl enable -q --now cleanuparr || return
+  register_app cleanuparr
+  msg_ok "Installed Cleanuparr"
+}
+
+update_cleanuparr() {
+  if check_for_gh_release "cleanuparr" "Cleanuparr/Cleanuparr"; then
+    create_cleanuparr_pre_update_backup || return
+    staged_prebuilt_update cleanuparr Cleanuparr Cleanuparr/Cleanuparr /opt/cleanuparr \
+      "*linux-$(arch_resolve).zip" || return
+    msg_ok "Updated Cleanuparr"
+  fi
+}
+
 install_app() {
   local app
   app="$(normalize_app "$1")"
@@ -1480,6 +1595,7 @@ install_app() {
     flaresolverr) install_flaresolverr ;;
     seerr) install_seerr ;;
     bazarr) install_bazarr ;;
+    cleanuparr) install_cleanuparr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -1500,6 +1616,7 @@ update_app() {
     flaresolverr) update_flaresolverr ;;
     seerr) update_seerr ;;
     bazarr) update_bazarr ;;
+    cleanuparr) update_cleanuparr ;;
     *)
       msg_error "Unsupported application: $1"
       return 1
@@ -1515,7 +1632,7 @@ choose_uninstalled_apps() {
     conflict="$(conflicting_app "$app")"
     if ! is_installed "$app" && { [[ -z "$conflict" ]] || ! is_installed "$conflict"; }; then
       default_state="ON"
-      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" || "$app" == "bazarr" ]] && default_state="OFF"
+      [[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" || "$app" == "bazarr" || "$app" == "cleanuparr" ]] && default_state="OFF"
       options+=("$app" "${APP_DESCRIPTION[$app]}" "$default_state")
     fi
   done
@@ -1638,6 +1755,7 @@ remove_app_files() {
   if [[ "$purge" == "1" ]]; then
     [[ -z "${APP_DATA_DIR[$app]:-}" ]] || rm -rf "${APP_DATA_DIR[$app]}"
     [[ "$app" != "seerr" ]] || rm -rf "$SEERR_CONFIG_PATH"
+    [[ "$app" != "cleanuparr" ]] || rm -rf "$CLEANUPARR_LOG_PATH"
   fi
   [[ "$app" != "seerr" ]] || rm -rf "$SEERR_SYSTEM_CONFIG_DIR"
 
@@ -1791,61 +1909,92 @@ restart_apps() {
 }
 
 self_update() {
-  local update_url community_url temp_dir release_version runtime_file backup_file changed=0
+  local update_url asset_url temp_dir release_version runtime_file backup_file helper changed=0
   update_url="${ARRSUITE_UPDATE_BASE_URL:-}"
   if [[ -z "$update_url" && -r "$UPDATE_URL_FILE" ]]; then
     update_url="$(<"$UPDATE_URL_FILE")"
   fi
   update_url="${update_url:-$DEFAULT_UPDATE_BASE_URL}"
   update_url="${update_url%/}"
-  community_url="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}"
-  community_url="${community_url%/}"
 
   temp_dir="$(mktemp -d)"
-  if ! curl -fsSL "${update_url}/arrsuite-manager" -o "${temp_dir}/arrsuite" \
-    || ! curl -fsSL "${update_url}/arrsuite-motd.sh" -o "${temp_dir}/arrsuite-motd.sh" \
-    || ! curl -fsSL "${update_url}/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh" \
-    || ! curl -fsSL "${update_url}/VERSION" -o "${temp_dir}/VERSION" \
-    || ! curl -fsSL "${update_url}/SHA256SUMS" -o "${temp_dir}/SHA256SUMS" \
-    || ! curl -fsSL "${community_url}/misc/install.func" -o "${temp_dir}/community-functions.sh" \
-    || ! curl -fsSL "${community_url}/misc/tools.func" -o "${temp_dir}/community-tools.sh"; then
+  if ! curl -fsSL --retry 3 --retry-all-errors "${update_url}/VERSION" -o "${temp_dir}/VERSION" \
+    || ! grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' "${temp_dir}/VERSION"; then
+    rm -rf "$temp_dir"
+    msg_error "Failed to resolve the ArrSuite update version"
+    return 1
+  fi
+  release_version="$(<"${temp_dir}/VERSION")"
+  asset_url="$update_url"
+  if [[ "$update_url" == "$DEFAULT_UPDATE_BASE_URL" ]]; then
+    asset_url="https://github.com/donselkirk/arrsuite/releases/download/${release_version}"
+  fi
+
+  if ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/arrsuite-manager" -o "${temp_dir}/arrsuite" \
+    || ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/arrsuite-motd.sh" -o "${temp_dir}/arrsuite-motd.sh" \
+    || ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh" \
+    || ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/SHA256SUMS" -o "${temp_dir}/SHA256SUMS"; then
     rm -rf "$temp_dir"
     msg_error "Failed to download ArrSuite update files"
     return 1
   fi
+  for helper in build.func install.func tools.func core.func api.func error_handler.func; do
+    if ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/${helper}" -o "${temp_dir}/${helper}"; then
+      rm -rf "$temp_dir"
+      msg_error "Failed to download the reviewed ArrSuite helper bundle"
+      return 1
+    fi
+  done
 
   if ! (cd "$temp_dir" && sha256sum -c --ignore-missing SHA256SUMS >/dev/null \
       && grep -q ' arrsuite-manager$' SHA256SUMS \
       && grep -q ' arrsuite-motd.sh$' SHA256SUMS \
       && grep -q ' fix-console-autologin.sh$' SHA256SUMS \
-      && grep -q ' VERSION$' SHA256SUMS) \
+      && grep -q ' VERSION$' SHA256SUMS \
+      && for helper in build.func install.func tools.func core.func api.func error_handler.func; do
+        grep -q " ${helper}$" SHA256SUMS || exit 1
+      done) \
     || ! bash -n "${temp_dir}/arrsuite" \
     || ! bash -n "${temp_dir}/arrsuite-motd.sh" \
     || ! bash -n "${temp_dir}/fix-console-autologin.sh" \
-    || ! grep -q '^fetch_and_deploy_gh_release()' "${temp_dir}/community-tools.sh" \
+    || ! grep -q '^fetch_and_deploy_gh_release()' "${temp_dir}/tools.func" \
     || ! grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' "${temp_dir}/VERSION"; then
     rm -rf "$temp_dir"
     msg_error "Downloaded ArrSuite update files failed validation"
     return 1
   fi
-  release_version="$(<"${temp_dir}/VERSION")"
-
   msg_info "Updating ArrSuite Runtime"
   cmp -s "${temp_dir}/arrsuite" "$MANAGER_PATH" || changed=1
   install -d -m 0700 "${temp_dir}/previous"
-  for runtime_file in "$MANAGER_PATH" "$MOTD_PATH" "$REPAIR_PATH" "$FUNCTIONS_LIBRARY" "$TOOLS_LIBRARY" "$VERSION_FILE" "$UPDATE_URL_FILE"; do
+  for runtime_file in "$MANAGER_PATH" "$MOTD_PATH" "$REPAIR_PATH" "$FUNCTIONS_LIBRARY" "$TOOLS_LIBRARY" \
+    "${BASE_DIR}/lib/build.func" "${BASE_DIR}/lib/install.func" "${BASE_DIR}/lib/tools.func" \
+    "${BASE_DIR}/lib/core.func" "${BASE_DIR}/lib/api.func" "${BASE_DIR}/lib/error_handler.func" \
+    "$VERSION_FILE" "$UPDATE_URL_FILE"; do
     [[ ! -e "$runtime_file" ]] || cp -a "$runtime_file" "${temp_dir}/previous/$(basename "$runtime_file")"
   done
   if ! install -m 0755 "${temp_dir}/arrsuite" "$MANAGER_PATH" \
     || ! install -m 0755 "${temp_dir}/arrsuite-motd.sh" "$MOTD_PATH" \
     || ! install -m 0755 "${temp_dir}/fix-console-autologin.sh" "$REPAIR_PATH" \
-    || ! install -m 0644 "${temp_dir}/community-functions.sh" "$FUNCTIONS_LIBRARY" \
-    || ! install -m 0644 "${temp_dir}/community-tools.sh" "$TOOLS_LIBRARY" \
+    || ! install -m 0644 "${temp_dir}/install.func" "$FUNCTIONS_LIBRARY" \
+    || ! install -m 0644 "${temp_dir}/tools.func" "$TOOLS_LIBRARY" \
+    || ! install -m 0644 "${temp_dir}/build.func" "${BASE_DIR}/lib/build.func" \
+    || ! install -m 0644 "${temp_dir}/install.func" "${BASE_DIR}/lib/install.func" \
+    || ! install -m 0644 "${temp_dir}/tools.func" "${BASE_DIR}/lib/tools.func" \
+    || ! install -m 0644 "${temp_dir}/core.func" "${BASE_DIR}/lib/core.func" \
+    || ! install -m 0644 "${temp_dir}/api.func" "${BASE_DIR}/lib/api.func" \
+    || ! install -m 0644 "${temp_dir}/error_handler.func" "${BASE_DIR}/lib/error_handler.func" \
     || ! install -m 0644 "${temp_dir}/VERSION" "$VERSION_FILE" \
     || ! printf '%s\n' "$update_url" >"$UPDATE_URL_FILE"; then
-    for runtime_file in "$MANAGER_PATH" "$MOTD_PATH" "$REPAIR_PATH" "$FUNCTIONS_LIBRARY" "$TOOLS_LIBRARY" "$VERSION_FILE" "$UPDATE_URL_FILE"; do
+    for runtime_file in "$MANAGER_PATH" "$MOTD_PATH" "$REPAIR_PATH" "$FUNCTIONS_LIBRARY" "$TOOLS_LIBRARY" \
+      "${BASE_DIR}/lib/build.func" "${BASE_DIR}/lib/install.func" "${BASE_DIR}/lib/tools.func" \
+      "${BASE_DIR}/lib/core.func" "${BASE_DIR}/lib/api.func" "${BASE_DIR}/lib/error_handler.func" \
+      "$VERSION_FILE" "$UPDATE_URL_FILE"; do
       backup_file="${temp_dir}/previous/$(basename "$runtime_file")"
-      [[ ! -e "$backup_file" ]] || cp -a "$backup_file" "$runtime_file" || true
+      if [[ -e "$backup_file" ]]; then
+        cp -a "$backup_file" "$runtime_file" || true
+      else
+        rm -f "$runtime_file"
+      fi
     done
     rm -rf "$temp_dir"
     msg_error "Failed to install ArrSuite update files; previous runtime restored"
@@ -1870,8 +2019,8 @@ show_version() {
 
 show_list() {
   local app installed service_state
-  printf '%-10s %-11s %-10s %-12s\n' "APP" "INSTALLED" "PORT" "SERVICE"
-  printf '%-10s %-11s %-10s %-12s\n' "----------" "-----------" "----------" "------------"
+  printf '%-12s %-11s %-10s %-12s\n' "APP" "INSTALLED" "PORT" "SERVICE"
+  printf '%-12s %-11s %-10s %-12s\n' "------------" "-----------" "----------" "------------"
 
   for app in "${SUPPORTED_APPS[@]}"; do
     installed="no"
@@ -1880,7 +2029,7 @@ show_list() {
       installed="yes"
       service_state="$(systemctl is-active "$app" 2>/dev/null || true)"
     fi
-    printf '%-10s %-11s %-10s %-12s\n' \
+    printf '%-12s %-11s %-10s %-12s\n' \
       "${APP_LABEL[$app]}" \
       "$installed" \
       "${APP_PORT[$app]}" \
@@ -1943,6 +2092,7 @@ Supported apps:
   flaresolverr Cloudflare proxy service, port 8192 (amd64 only)
   seerr        Media request manager, port 5055
   bazarr       Subtitle manager, port 6767
+  cleanuparr   Download cleanup manager, port 11011
 
 The Community Scripts command `update` invokes `arrsuite update`.
 EOF_HELP
@@ -2030,7 +2180,7 @@ main "$@"
 EOF_MANAGER
 
 chmod 0755 /usr/local/bin/arrsuite
-printf '%s\n' "https://github.com/donselkirk/arrsuite/releases/latest/download" \
+printf '%s\n' "${ARRSUITE_UPDATE_BASE_URL:-https://github.com/donselkirk/arrsuite/releases/latest/download}" \
   >/opt/arrsuite/update.url
 if [[ -n "${ARRSUITE_VERSION_URL:-}" ]]; then
   if curl -fsSL "$ARRSUITE_VERSION_URL" -o /opt/arrsuite/version \

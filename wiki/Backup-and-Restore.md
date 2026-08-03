@@ -25,6 +25,10 @@ arrsuite backup radarr --output /mnt/backups
 
 The default destination is `/opt/arrsuite/backups/<app>/`.
 
+Before application updates, ArrSuite automatically writes safety backups to
+`/opt/arrsuite/backups/pre-update/<app>/` for Sonarr, Radarr, Lidarr, Prowlarr,
+Seerr, and Bazarr. An update is skipped if its required backup fails.
+
 ## Restore
 
 ```bash
@@ -40,6 +44,11 @@ automatic rollback if the restored service cannot start.
 
 Bazarr backup support covers ArrSuite's default SQLite configuration. An
 external PostgreSQL database must be backed up separately.
+
+Cleanuparr configuration is preserved by normal removal and is copied to
+`/opt/arrsuite/backups/pre-update/cleanuparr/` before each application update.
+These Cleanuparr safety copies are compressed tar archives of
+`/etc/cleanuparr`; they are not currently handled by `arrsuite restore`.
 
 ## Transfer from the Proxmox host
 

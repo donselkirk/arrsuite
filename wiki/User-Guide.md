@@ -16,11 +16,14 @@ arrsuite version
 ```bash
 arrsuite add
 arrsuite add lidarr
-arrsuite add prowlarr bazarr
+arrsuite add prowlarr bazarr cleanuparr
 ```
 
 Running `arrsuite add` without an application opens a checklist. Byparr and
 FlareSolverr are mutually exclusive and cannot be installed together.
+
+Sonarr and Radarr are selected by default. Lidarr, Prowlarr, Byparr,
+FlareSolverr, Seerr, Bazarr, and Cleanuparr are optional and unchecked.
 
 ## Update and restart
 
@@ -36,6 +39,11 @@ arrsuite restart sonarr
 `update` first attempts an ArrSuite self-update and then updates every installed
 application. A self-update network failure does not prevent application
 updates.
+
+Updates for Sonarr, Radarr, Lidarr, Prowlarr, Seerr, and Bazarr first create a
+backup under `/opt/arrsuite/backups/pre-update/<app>/`. Cleanuparr archives its
+configuration under the same hierarchy. If a required backup fails, that
+application is not updated.
 
 ## Remove or reset
 

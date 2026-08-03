@@ -37,6 +37,7 @@ install_seerr() {
 update_seerr() {
   local stage_dir=/opt/seerr.arrsuite-new previous_dir=/opt/seerr.arrsuite-previous stage_home=/opt/seerr.arrsuite-home
   if check_for_gh_release "seerr" "seerr-team/seerr"; then
+    create_pre_update_backup seerr || return
     rm -rf "$stage_dir" "$stage_home"
     install -d -m 0700 "$stage_home"
     HOME="$stage_home" fetch_and_deploy_gh_release "seerr" "seerr-team/seerr" "tarball" "latest" "$stage_dir" \
@@ -45,16 +46,16 @@ update_seerr() {
     systemctl stop seerr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
     rm -rf "$previous_dir"
     mv /opt/seerr "$previous_dir" || { rm -rf "$stage_dir"; systemctl start seerr || true; return 1; }
-    if [[ -d "$previous_dir/config" ]] && ! mv "$previous_dir/config" "$stage_dir/config"; then
+    if [[ -d "$previous_dir/config" ]]; then
+      rm -rf "$stage_dir/config"
+    fi
+    if [[ -d "$previous_dir/config" ]] && ! cp -a "$previous_dir/config" "$stage_dir/config"; then
       mv "$previous_dir" /opt/seerr
       systemctl start seerr || true
       rm -rf "$stage_dir" "$stage_home"
       return 1
     fi
     if ! mv "$stage_dir" /opt/seerr; then
-      if [[ -d "$stage_dir/config" && ! -d "$previous_dir/config" ]]; then
-        mv "$stage_dir/config" "$previous_dir/config" || true
-      fi
       rm -rf /opt/seerr
       mv "$previous_dir" /opt/seerr
       systemctl start seerr || true
@@ -63,7 +64,6 @@ update_seerr() {
     fi
     if ! systemctl start seerr || ! systemctl is-active --quiet seerr; then
       systemctl stop seerr || true
-      [[ -d /opt/seerr/config ]] && mv /opt/seerr/config "$previous_dir/config"
       rm -rf /opt/seerr
       mv "$previous_dir" /opt/seerr
       systemctl start seerr || true

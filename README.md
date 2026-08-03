@@ -21,6 +21,7 @@ wherever practical.
 | FlareSolverr | 8192 | Optional |
 | Seerr | 5055 | Optional |
 | Bazarr | 6767 | Optional |
+| Cleanuparr | 11011 | Optional |
 
 Byparr and FlareSolverr are mutually exclusive. Sonarr and Radarr are selected
 by default; every other application is unchecked. LXC nesting is disabled by
@@ -59,6 +60,8 @@ arrsuite version
 The standard `update` command self-updates ArrSuite and then updates every
 installed application. Remove and reset require confirmation; add `--yes` for
 deliberate noninteractive use. Restore does not create an automatic backup.
+Stateful applications create a pre-update backup before their program files
+are replaced; Cleanuparr similarly archives `/etc/cleanuparr` before updates.
 
 ## Documentation
 
@@ -77,6 +80,8 @@ deliberate noninteractive use. Restore does not create an automatic backup.
 - Blank-password console auto-login supports both the Proxmox web console and
   `pct console`.
 - Local static checks do not replace testing on a disposable Proxmox node.
+- Each release includes a checksum-verified, reviewed Community Scripts helper
+  bundle so bootstrap and self-update do not silently mix upstream revisions.
 - ArrSuite is an independent, AI-assisted community project and is not an
   official Community Scripts release.
 

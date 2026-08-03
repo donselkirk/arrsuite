@@ -1,0 +1,17 @@
+[Unit]
+Description=Cleanuparr Daemon
+After=syslog.target network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cleanuparr
+ExecStart=/opt/cleanuparr/Cleanuparr
+Restart=on-failure
+RestartSec=5
+Environment="PORT=11011"
+Environment="CLEANUPARR_CONFIG_PATH=/etc/cleanuparr"
+Environment="CLEANUPARR_LOGS_PATH=/var/log/cleanuparr"
+
+[Install]
+WantedBy=multi-user.target

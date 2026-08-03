@@ -52,17 +52,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          mkdir -p dist
-          printf '%s\n' "$RELEASE_VERSION" >dist/VERSION
-          cp arrsuite.sh dist/arrsuite.sh
-          cp ct/arrsuite.sh dist/arrsuite-ct.sh
-          cp install/arrsuite-install.sh dist/arrsuite-install.sh
-          cp tools/arrsuite-manager dist/arrsuite-manager
-          cp tools/arrsuite-motd.sh dist/arrsuite-motd.sh
-          cp tools/fix-console-autologin.sh dist/fix-console-autologin.sh
-          cp tools/seerr-backup.sh dist/seerr-backup.sh
-          chmod 0755 dist/*.sh dist/arrsuite-manager
-          (cd dist && sha256sum VERSION *.sh arrsuite-manager >SHA256SUMS)
+          bash tools/build-release-assets.sh "$RELEASE_VERSION" dist
 
       - name: Generate release notes
         env:
@@ -101,6 +91,23 @@ jobs:
             dist/arrsuite-motd.sh \
             dist/fix-console-autologin.sh \
             dist/seerr-backup.sh \
+            dist/build.func \
+            dist/install.func \
+            dist/tools.func \
+            dist/core.func \
+            dist/api.func \
+            dist/error_handler.func \
             --target "$GITHUB_SHA" \
             --title "ArrSuite $RELEASE_VERSION" \
             --notes-file dist/RELEASE_NOTES.md
+
+      - name: Verify published release payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p published
+          gh release download "$RELEASE_VERSION" --dir published
+          cmp dist/VERSION published/VERSION
+          cmp dist/SHA256SUMS published/SHA256SUMS
+          (cd published && sha256sum -c SHA256SUMS)

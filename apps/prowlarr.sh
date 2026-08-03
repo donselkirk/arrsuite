@@ -34,6 +34,7 @@ install_prowlarr() {
 update_prowlarr() {
   $STD apt install -y libicu-dev || return
   if check_for_gh_release "prowlarr" "Prowlarr/Prowlarr"; then
+    create_pre_update_backup prowlarr || return
     staged_prebuilt_update prowlarr prowlarr Prowlarr/Prowlarr /opt/Prowlarr \
       "Prowlarr.master*linux-core-x64.tar.gz" 0775 || return
     msg_ok "Updated Prowlarr"

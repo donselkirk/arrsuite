@@ -16,6 +16,7 @@ Supported applications and ports:
 - FlareSolverr: 8192 (amd64 only; changed from upstream 8191 to avoid Byparr)
 - Seerr: 5055
 - Bazarr: 6767
+- Cleanuparr: 11011
 
 Sonarr and Radarr must be selected by default. All other applications must be
 optional and unchecked. LXC nesting must default to disabled.
@@ -44,7 +45,14 @@ optional and unchecked. LXC nesting must default to disabled.
 - Prebuilt application updates must stage and validate the new release before
   stopping the service. Keep the previous program directory until the updated
   service is active, and restore it when deployment or startup fails.
-- Self-update must verify downloaded runtime assets against the release's
+- Before updating Sonarr, Radarr, Lidarr, Prowlarr, Seerr, or Bazarr, create a
+  verified backup under `/opt/arrsuite/backups/pre-update/<app>/` and abort that
+  update if backup creation fails. Back up Cleanuparr configuration under the
+  same pre-update hierarchy. Seerr updates must retain the complete previous
+  installation for rollback and copy, never move, its configuration into a
+  clean staged directory.
+- Self-update must resolve `latest` to one exact release and verify all runtime
+  and reviewed Community Scripts helper assets against that release's
   `SHA256SUMS` before installing them.
 - `/usr/bin/update` must attempt an ArrSuite self-update and then update every
   installed application. A self-update network failure must not prevent
@@ -61,9 +69,9 @@ optional and unchecked. LXC nesting must default to disabled.
 - Keep each application's install, update, service, dependencies, release
   asset, data path, and architecture behavior isolated from other modules.
 - Base application behavior on the current individual Community Scripts
-  implementation in `community-scripts/ProxmoxVED`; consult the previous
-  `community-scripts/ProxmoxVE` repository only when a script has been removed
-  from the development repository.
+  implementation in `community-scripts/ProxmoxVE`. If an application is being
+  staged in `community-scripts/ProxmoxVED`, review that development version
+  before the production version.
 
 ## Files that must remain synchronized
 
@@ -88,8 +96,11 @@ optional and unchecked. LXC nesting must default to disabled.
 - `tests/static-checks.sh` verifies the generated manager and both embedded
   artifacts byte-for-byte. Regenerate whenever a source artifact changes.
 
-`tools/upstream-lock.json` records the exact Community Scripts install and CT
-source blobs reviewed for every application. Run `bash tools/check-upstream.sh`
+`tools/upstream-lock.json` records the exact Community Scripts helper files and
+install/CT source blobs reviewed for every application. The reviewed helper
+copies live under `vendor/community-scripts/misc/`; only the documented
+ArrSuite helper-base substitutions may differ from their locked upstream blobs.
+Run `bash tools/check-upstream.sh`
 to detect changes and generate focused diffs under `upstream-report/`. Review
 the diffs and update the relevant `apps/<app>.sh`; never execute new upstream
 content automatically. Update the lock only after the imported behavior has
@@ -102,6 +113,8 @@ When adding an application, update all relevant surfaces:
 - initial checklist default state and help output;
 - login-banner port mapping;
 - CT completion output, JSON metadata, README, and tests.
+- Wiki architecture, user, and backup documentation plus the reviewed entries
+  in `tools/upstream-lock.json`.
 
 ## Console requirements
 
@@ -120,11 +133,14 @@ and current systemd state.
 
 ## Bootstrap constraints
 
-`arrsuite.sh` must continue using the current official Community Scripts
-helpers while redirecting only the application-installer URL to this
-repository's latest GitHub release. Fresh installs, `update`, and
-`self-update` must default to `releases/latest/download`; a raw commit URL may
-remain available only as an explicit development override. Do not enable Bash
+`arrsuite.sh` must use the reviewed official Community Scripts helper bundle
+published with each ArrSuite release while redirecting the application
+installer URL to that same exact release. Resolve the default
+`releases/latest/download` entry point to its versioned release before loading
+assets, and validate the helper bundle against `SHA256SUMS`. A live upstream
+helper base or raw repository URL may remain available only as an explicit
+development override through `COMMUNITY_SCRIPTS_URL` or
+`ARRSUITE_REPOSITORY_RAW_URL`. Do not enable Bash
 `nounset` in the bootstrap; explicitly retain `set +u` because upstream helpers
 reference optional unset variables such as `SSH_CLIENT`.
 
@@ -152,7 +168,8 @@ systemd startup, release downloads, or web interfaces.
 - Use focused commit messages such as `feat: add Prowlarr module` or
   `fix: clear getty credentials in unprivileged LXC`.
 - Every push to `main` must run GitHub Actions validation and create the next
-  patch release with generated change notes and stable runtime assets.
+  patch release with an Important Changes summary, full comparison link, and
+  stable runtime assets.
 - After every pushed change, verify the generated release and provide a
   cache-bypassing, version-pinned installation command using that release:
 

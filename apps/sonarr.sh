@@ -28,6 +28,7 @@ install_sonarr() {
 
 update_sonarr() {
   if check_for_gh_release "Sonarr" "Sonarr/Sonarr"; then
+    create_pre_update_backup sonarr || return
     staged_prebuilt_update sonarr Sonarr Sonarr/Sonarr /opt/Sonarr \
       "Sonarr.main.*.linux-$(arch_resolve "x64" "arm64").tar.gz" || return
     msg_ok "Updated Sonarr"

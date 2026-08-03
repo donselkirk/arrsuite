@@ -3,7 +3,7 @@ name: Check Community Scripts Upstream
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 9 * * 1"
+    - cron: "17 9 * * *"
 
 permissions:
   contents: read
@@ -36,5 +36,5 @@ jobs:
       - name: Require review when upstream changed
         if: steps.upstream.outcome == 'failure'
         run: |
-          echo "Tracked Community Scripts files changed. Review the uploaded report." >&2
+          echo "The upstream check needs attention. Review the summary and uploaded report; transient query failures are reported separately from source changes." >&2
           exit 1

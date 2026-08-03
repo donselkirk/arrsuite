@@ -65,6 +65,7 @@ update_bazarr() {
   local stage_dir=/opt/bazarr.arrsuite-new previous_dir=/opt/bazarr.arrsuite-previous stage_home=/opt/bazarr.arrsuite-home
   migrate_bazarr_data || return
   if check_for_gh_release "bazarr" "morpheus65535/bazarr"; then
+    create_pre_update_backup bazarr || return
     rm -rf "$stage_dir" "$stage_home"
     install -d -m 0700 "$stage_home"
     PYTHON_VERSION="3.12" setup_uv || return

@@ -28,6 +28,7 @@ install_radarr() {
 
 update_radarr() {
   if check_for_gh_release "Radarr" "Radarr/Radarr"; then
+    create_pre_update_backup radarr || return
     staged_prebuilt_update radarr Radarr Radarr/Radarr /opt/Radarr \
       "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Radarr"
