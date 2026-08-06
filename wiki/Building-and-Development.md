@@ -43,6 +43,11 @@ link, `SHA256SUMS`, stable runtime assets, and the reviewed Community Scripts
 helper bundle. The workflow downloads the published payload and verifies its
 checksums before declaring the release complete.
 
+Pull requests run the same validation but never calculate a version, publish
+assets, or create a release. Automated upstream-review PRs with a pending
+application marker intentionally fail until the listed semantic adaptations
+are completed.
+
 The Markdown files under `wiki/` are the canonical Wiki sources. Changes to
 them on `main` are published automatically by `.github/workflows/wiki.yml`;
 avoid editing the published GitHub Wiki separately.

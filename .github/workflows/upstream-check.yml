@@ -3,10 +3,16 @@ name: Check Community Scripts Upstream
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 9 * * *"
+    - cron: "17 9 * * 1"
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: arrsuite-upstream-review
+  cancel-in-progress: false
 
 jobs:
   check-upstream:
@@ -14,17 +20,49 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Compare tracked Community Scripts sources
-        id: upstream
-        continue-on-error: true
+      - name: Resume existing review branch
+        id: resume
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_BRANCH: automation/upstream-review
+        run: |
+          resumed=false
+          pr_number="$(gh pr list --head "$REVIEW_BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [[ -n "$pr_number" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git fetch origin "${REVIEW_BRANCH}:refs/remotes/origin/${REVIEW_BRANCH}"
+            git checkout -B "$REVIEW_BRANCH" "origin/${REVIEW_BRANCH}"
+            git merge --no-edit origin/main
+            resumed=true
+          fi
+          echo "resumed=$resumed" >>"$GITHUB_OUTPUT"
+
+      - name: Prepare reviewed upstream candidate
+        id: prepare
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: bash tools/check-upstream.sh
+        run: |
+          set +e
+          bash tools/prepare-upstream-review.sh
+          result=$?
+          set -e
+          state="failure"
+          [[ -r upstream-report/result.env ]] && source upstream-report/result.env
+          echo "state=$state" >>"$GITHUB_OUTPUT"
+          echo "exit_code=$result" >>"$GITHUB_OUTPUT"
 
       - name: Add report to workflow summary
         if: always()
-        run: cat upstream-report/summary.md >>"$GITHUB_STEP_SUMMARY"
+        run: |
+          if [[ -r upstream-report/summary.md ]]; then
+            cat upstream-report/summary.md >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "Upstream review stopped before a report could be generated." >>"$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload review report
         if: always()
@@ -33,8 +71,73 @@ jobs:
           name: community-scripts-upstream-report
           path: upstream-report/
 
-      - name: Require review when upstream changed
-        if: steps.upstream.outcome == 'failure'
+      - name: Validate candidate
+        if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0'
+        env:
+          ARRSUITE_ALLOW_PENDING_UPSTREAM_REVIEW: "1"
         run: |
-          echo "The upstream check needs attention. Review the summary and uploaded report; transient query failures are reported separately from source changes." >&2
+          bash tools/build-artifacts.sh
+          bash tests/static-checks.sh
+          git diff --check
+
+      - name: Create or refresh review PR
+        if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_BRANCH: automation/upstream-review
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ "${{ steps.resume.outputs.resumed }}" != "true" ]]; then
+            git fetch origin "${REVIEW_BRANCH}:refs/remotes/origin/${REVIEW_BRANCH}" || true
+            git checkout -B "$REVIEW_BRANCH"
+          fi
+          git add tools/upstream-lock.json vendor/community-scripts/misc
+          [[ ! -e upstream-review/pending.md ]] || git add upstream-review/pending.md
+          git add -u upstream-review 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: review Community Scripts upstream changes"
+          fi
+          if [[ "${{ steps.resume.outputs.resumed }}" == "true" ]]; then
+            if [[ "$(git rev-list --count "origin/${REVIEW_BRANCH}..HEAD")" -gt 0 ]]; then
+              git push origin "HEAD:refs/heads/${REVIEW_BRANCH}"
+            fi
+          else
+            git push --force-with-lease origin "HEAD:refs/heads/${REVIEW_BRANCH}"
+          fi
+
+          pr_number="$(gh pr list --head "$REVIEW_BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [[ -z "$pr_number" ]]; then
+            gh pr create \
+              --base main \
+              --head "$REVIEW_BRANCH" \
+              --title "chore: review Community Scripts upstream changes" \
+              --body-file upstream-report/pr-body.md \
+              --assignee donselkirk \
+              --reviewer donselkirk
+          else
+            gh pr edit "$pr_number" \
+              --body-file upstream-report/pr-body.md \
+              --add-assignee donselkirk
+            gh pr edit "$pr_number" --add-reviewer donselkirk || true
+          fi
+          review_state="success"
+          review_description="Automated helper review passed"
+          if [[ -e upstream-review/pending.md ]]; then
+            review_state="failure"
+            review_description="Application adaptations are still required"
+          fi
+          commit_sha="$(git rev-parse HEAD)"
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${commit_sha}" \
+            -f state="$review_state" \
+            -f context="ArrSuite upstream review" \
+            -f description="$review_description"
+          gh pr view "$REVIEW_BRANCH" --json url --jq '"Review PR: " + .url' >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Require attention on unsafe or incomplete review
+        if: steps.prepare.outputs.exit_code != '0'
+        run: |
+          echo "The automated upstream review could not safely generate a candidate. Review the workflow report artifact." >&2
           exit 1

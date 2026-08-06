@@ -12,6 +12,7 @@ wiki_workflow="${project_root}/.github/workflows/wiki.yml"
 artifact_builder="${project_root}/tools/build-artifacts.sh"
 release_builder="${project_root}/tools/build-release-assets.sh"
 upstream_checker="${project_root}/tools/check-upstream.sh"
+upstream_preparer="${project_root}/tools/prepare-upstream-review.sh"
 upstream_lock="${project_root}/tools/upstream-lock.json"
 manager_template="${project_root}/src/arrsuite-manager.sh.in"
 installer_template="${project_root}/src/arrsuite-install.sh.in"
@@ -21,6 +22,7 @@ template_tmp_dir="$(mktemp -d)"
 standalone_manager="${project_root}/tools/arrsuite-manager"
 behavior_test="${project_root}/tests/manager-behavior.sh"
 bootstrap_test="${project_root}/tests/bootstrap-behavior.sh"
+upstream_review_test="${project_root}/tests/upstream-review-behavior.sh"
 standalone_motd="${project_root}/tools/arrsuite-motd.sh"
 seerr_backup_tool="${project_root}/tools/seerr-backup.sh"
 trap 'rm -f "$manager_tmp" "$motd_tmp"; rm -rf "$template_tmp_dir"' EXIT
@@ -46,11 +48,13 @@ bash -n "$manager_tmp"
 bash -n "$standalone_manager"
 bash -n "$behavior_test"
 bash -n "$bootstrap_test"
+bash -n "$upstream_review_test"
 bash -n "$standalone_motd"
 bash -n "$seerr_backup_tool"
 bash -n "$artifact_builder"
 bash -n "$release_builder"
 bash -n "$upstream_checker"
+bash -n "$upstream_preparer"
 bash -n "$manager_template"
 bash -n "$installer_template"
 for template_script in "${project_root}/templates/update.sh"; do
@@ -137,6 +141,11 @@ cmp -s "${template_tmp_dir}/update.sh" "${project_root}/templates/update.sh" || 
 printf 'Checking JSON metadata...\n'
 python3 -m json.tool "$json_file" >/dev/null
 python3 -m json.tool "$upstream_lock" >/dev/null
+if [[ -e "${project_root}/upstream-review/pending.md" \
+  && "${ARRSUITE_ALLOW_PENDING_UPSTREAM_REVIEW:-0}" != "1" ]]; then
+  echo "Pending upstream application adaptations must be resolved before merge." >&2
+  exit 1
+fi
 
 printf 'Checking required project files...\n'
 for required in "$bootstrap_script" "$ct_script" "$install_script" "$json_file" "$standalone_manager" "$seerr_backup_tool"; do
@@ -326,9 +335,18 @@ grep -q 'os.path.islink' "$seerr_backup_tool"
 grep -q 'dist/VERSION' "$release_workflow"
 grep -q '^name: Check Community Scripts Upstream$' "$upstream_workflow"
 grep -q 'schedule:' "$upstream_workflow"
-grep -q '17 9 \* \* \*' "$upstream_workflow"
-grep -q 'bash tools/check-upstream.sh' "$upstream_workflow"
+grep -q '17 9 \* \* 1' "$upstream_workflow"
+grep -q 'bash tools/prepare-upstream-review.sh' "$upstream_workflow"
+grep -q 'contents: write' "$upstream_workflow"
+grep -q 'pull-requests: write' "$upstream_workflow"
+grep -q 'statuses: write' "$upstream_workflow"
+grep -q 'automation/upstream-review' "$upstream_workflow"
+grep -q -- '--assignee donselkirk' "$upstream_workflow"
+grep -q -- '--reviewer donselkirk' "$upstream_workflow"
+grep -q 'ArrSuite upstream review' "$upstream_workflow"
 grep -q 'actions/upload-artifact@v4' "$upstream_workflow"
+grep -q 'pull_request:' "$release_workflow"
+grep -q "github.event_name == 'push'" "$release_workflow"
 grep -q '^name: Publish Wiki$' "$wiki_workflow"
 grep -q '      - "wiki/\*\*/\*.md"' "$wiki_workflow"
 grep -q '\.wiki\.git' "$wiki_workflow"
@@ -369,12 +387,13 @@ grep -q 'curl -fsSL "${ARRSUITE_RELEASE_BASE_URL}/arrsuite.sh"' "${project_root}
 
 printf 'Running manager behavior tests...\n'
 bash "$bootstrap_test"
+bash "$upstream_review_test"
 bash "$behavior_test"
 
 if command -v shellcheck >/dev/null 2>&1; then
   printf 'Running ShellCheck...\n'
   # SC1090/SC1091: function libraries are generated or downloaded at runtime.
-  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$installer_template" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$bootstrap_test" "$behavior_test" "${project_root}/templates/update.sh" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool" "$artifact_builder" "$release_builder" "$upstream_checker"
+  shellcheck -e SC1090,SC1091 "$bootstrap_script" "$ct_script" "$install_script" "$installer_template" "$manager_tmp" "$standalone_manager" "$motd_tmp" "$standalone_motd" "$bootstrap_test" "$upstream_review_test" "$behavior_test" "${project_root}/templates/update.sh" "${project_root}/tools/fix-console-autologin.sh" "$seerr_backup_tool" "$artifact_builder" "$release_builder" "$upstream_checker" "$upstream_preparer"
 else
   printf 'ShellCheck not installed; skipping it.\n'
 fi
