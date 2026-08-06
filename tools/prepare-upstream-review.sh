@@ -19,7 +19,8 @@ command -v curl >/dev/null || { echo "curl is required." >&2; exit 2; }
 command -v git >/dev/null || { echo "git is required." >&2; exit 2; }
 
 mkdir -p "$report_dir"
-rm -f "${report_dir}"/*.diff "${report_dir}/summary.md" "${report_dir}/pr-body.md"
+rm -f "${report_dir}"/*.diff "${report_dir}/summary.md" "${report_dir}/pr-body.md" \
+  "${report_dir}/agent-body.md"
 helper_changes=()
 application_changes=()
 
@@ -158,9 +159,14 @@ fi
 
 if ((${#helper_changes[@]} == 0 && ${#application_changes[@]} == 0)); then
   printf 'No tracked upstream changes were found.\n' >>"${report_dir}/summary.md"
-  printf 'state=none\n' >"${report_dir}/result.env"
+  printf 'state=none\napplication_changes=false\n' >"${report_dir}/result.env"
 else
   printf 'state=candidate\n' >"${report_dir}/result.env"
+  if ((${#application_changes[@]})); then
+    printf 'application_changes=true\n' >>"${report_dir}/result.env"
+  else
+    printf 'application_changes=false\n' >>"${report_dir}/result.env"
+  fi
 fi
 
 {
@@ -172,5 +178,32 @@ fi
     printf '\n**Merge blocked:** resolve `upstream-review/pending.md` and remove it before merging.\n'
   fi
 } >"${report_dir}/pr-body.md"
+
+if ((${#application_changes[@]})); then
+  {
+    cat <<'EOF_AGENT_INTRO'
+## Community Scripts application adaptation required
+
+The weekly deterministic review found application behavior changes that require semantic review. Use the repository custom agent `arrsuite-upstream`.
+
+EOF_AGENT_INTRO
+    cat "$pending_file"
+    cat <<'EOF_AGENT_TASK'
+
+## Required work
+
+- Run `bash tools/prepare-upstream-review.sh` to reproduce the current report and focused diffs.
+- Review each changed upstream installer/CT script against the corresponding `apps/*.sh` module and templates.
+- Adapt ArrSuite only where upstream behavior requires it; preserve ArrSuite-specific ports, safety, backups, and rollback behavior.
+- Advance every resolved application blob in `tools/upstream-lock.json`.
+- Import any mechanically safe helper changes produced by the preparer.
+- Remove `upstream-review/pending.md` only after every listed change is resolved.
+- Run `bash tools/build-artifacts.sh`, `bash tests/static-checks.sh`, and `git diff --check`.
+- Open a draft pull request to `main`. Never merge it. Assign and request review from `donselkirk`.
+
+The pull request must summarize the upstream behavior changes, ArrSuite adaptations, tests run, and any Proxmox validation still required.
+EOF_AGENT_TASK
+  } >"${report_dir}/agent-body.md"
+fi
 
 cat "${report_dir}/summary.md"

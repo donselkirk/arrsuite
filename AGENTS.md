@@ -103,12 +103,15 @@ ArrSuite helper-base substitutions may differ from their locked upstream blobs.
 Run `bash tools/check-upstream.sh` to perform a read-only comparison and generate
 focused diffs under `upstream-report/`. The weekly automation uses
 `tools/prepare-upstream-review.sh` to import only mechanically safe helper
-updates into the stable `automation/upstream-review` PR branch. Application
-changes must remain unlocked and are recorded in
-`upstream-review/pending.md` until their ArrSuite modules are adapted and
-tested. Never merge that marker file, and never auto-merge an upstream review
-PR. Newly discovered upstream content must not reach `main` without human
-review and passing pull-request validation.
+updates into the stable `automation/upstream-review` PR branch. When application
+behavior changes, it creates a fingerprinted issue and assigns the
+`arrsuite-upstream` GitHub Copilot agent instead of opening the deterministic
+helper PR. The agent must adapt the ArrSuite modules, advance locks only after
+review, remove `upstream-review/pending.md`, and open a draft PR for
+`donselkirk`. Never merge that marker file, never auto-merge an upstream review
+PR, and never allow an agent to push directly to `main`. Newly discovered
+upstream content must not reach `main` without human review and passing
+pull-request validation.
 
 When adding an application, update all relevant surfaces:
 

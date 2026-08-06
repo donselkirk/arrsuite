@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
   statuses: write
 
@@ -51,8 +52,10 @@ jobs:
           result=$?
           set -e
           state="failure"
+          application_changes="false"
           [[ -r upstream-report/result.env ]] && source upstream-report/result.env
           echo "state=$state" >>"$GITHUB_OUTPUT"
+          echo "application_changes=$application_changes" >>"$GITHUB_OUTPUT"
           echo "exit_code=$result" >>"$GITHUB_OUTPUT"
 
       - name: Add report to workflow summary
@@ -81,7 +84,7 @@ jobs:
           git diff --check
 
       - name: Create or refresh review PR
-        if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0'
+        if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0' && steps.prepare.outputs.application_changes != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REVIEW_BRANCH: automation/upstream-review
@@ -93,8 +96,6 @@ jobs:
             git checkout -B "$REVIEW_BRANCH"
           fi
           git add tools/upstream-lock.json vendor/community-scripts/misc
-          [[ ! -e upstream-review/pending.md ]] || git add upstream-review/pending.md
-          git add -u upstream-review 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "chore: review Community Scripts upstream changes"
           fi
@@ -121,20 +122,51 @@ jobs:
               --add-assignee donselkirk
             gh pr edit "$pr_number" --add-reviewer donselkirk || true
           fi
-          review_state="success"
-          review_description="Automated helper review passed"
-          if [[ -e upstream-review/pending.md ]]; then
-            review_state="failure"
-            review_description="Application adaptations are still required"
-          fi
           commit_sha="$(git rev-parse HEAD)"
           gh api \
             --method POST \
             "repos/${GITHUB_REPOSITORY}/statuses/${commit_sha}" \
-            -f state="$review_state" \
+            -f state="success" \
             -f context="ArrSuite upstream review" \
-            -f description="$review_description"
+            -f description="Automated helper review passed"
           gh pr view "$REVIEW_BRANCH" --json url --jq '"Review PR: " + .url' >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Create Copilot application-review task
+        if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0' && steps.prepare.outputs.application_changes == 'true'
+        id: copilot_issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fingerprint="$(sha256sum upstream-review/pending.md | cut -c1-12)"
+          title="chore: adapt Community Scripts upstream changes (${fingerprint})"
+          issue_number="$(gh issue list --state open --search "${title} in:title" --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -n1)"
+          if [[ -z "$issue_number" ]]; then
+            issue_url="$(gh issue create --title "$title" --body-file upstream-report/agent-body.md --assignee donselkirk)"
+            issue_number="${issue_url##*/}"
+          else
+            gh issue edit "$issue_number" --body-file upstream-report/agent-body.md --add-assignee donselkirk
+          fi
+          echo "issue_number=$issue_number" >>"$GITHUB_OUTPUT"
+          echo "Copilot task: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/issues/${issue_number}" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Assign application review to GitHub Copilot
+        if: steps.copilot_issue.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.copilot_issue.outputs.issue_number }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "Add a COPILOT_AGENT_TOKEN repository secret containing a user token with Issues write access." >&2
+            exit 1
+          fi
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            '{assignees:["copilot-swe-agent[bot]"],agent_assignment:{target_repo:$repository,base_branch:"main",custom_instructions:"Use the arrsuite-upstream custom agent and complete every acceptance criterion in the issue.",custom_agent:"arrsuite-upstream",model:""}}' \
+            | gh api --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/assignees" \
+                --input -
 
       - name: Require attention on unsafe or incomplete review
         if: steps.prepare.outputs.exit_code != '0'

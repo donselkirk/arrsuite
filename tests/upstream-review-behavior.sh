@@ -27,6 +27,7 @@ EOF_LOCK
 ARRSUITE_PROJECT_ROOT="$review_root" UPSTREAM_FIXTURE_DIR="$review_root/fixture" \
   bash "$project_root/tools/prepare-upstream-review.sh" >/dev/null
 grep -qx 'state=none' "$review_root/upstream-report/result.env"
+grep -qx 'application_changes=false' "$review_root/upstream-report/result.env"
 [[ ! -e "$review_root/upstream-review/pending.md" ]]
 
 printf 'tool helper new\n' >"$review_root/fixture/community-scripts/ProxmoxVE/misc/tools.func"
@@ -35,16 +36,20 @@ new_helper_blob="$(git hash-object "$review_root/fixture/community-scripts/Proxm
 ARRSUITE_PROJECT_ROOT="$review_root" UPSTREAM_FIXTURE_DIR="$review_root/fixture" \
   bash "$project_root/tools/prepare-upstream-review.sh" >/dev/null
 grep -qx 'state=candidate' "$review_root/upstream-report/result.env"
+grep -qx 'application_changes=true' "$review_root/upstream-report/result.env"
 grep -qx 'tool helper new' "$review_root/vendor/community-scripts/misc/tools.func"
 [[ "$(jq -r '.helpers["tools.func"].blob' "$review_root/tools/upstream-lock.json")" == "$new_helper_blob" ]]
 [[ "$(jq -r '.applications.sonarr.install.blob' "$review_root/tools/upstream-lock.json")" == "$old_app_blob" ]]
 grep -q 'Do not merge this PR' "$review_root/upstream-review/pending.md"
 grep -q 'sonarr install' "$review_root/upstream-review/pending.md"
+grep -q 'arrsuite-upstream' "$review_root/upstream-report/agent-body.md"
+grep -q 'Open a draft pull request' "$review_root/upstream-report/agent-body.md"
 
 printf 'sonarr old\n' >"$review_root/fixture/community-scripts/ProxmoxVE/install/sonarr-install.sh"
 ARRSUITE_PROJECT_ROOT="$review_root" UPSTREAM_FIXTURE_DIR="$review_root/fixture" \
   bash "$project_root/tools/prepare-upstream-review.sh" >/dev/null
 grep -qx 'state=none' "$review_root/upstream-report/result.env"
+grep -qx 'application_changes=false' "$review_root/upstream-report/result.env"
 [[ ! -e "$review_root/upstream-review/pending.md" ]]
 
 unsafe_root="$test_root/unsafe"
