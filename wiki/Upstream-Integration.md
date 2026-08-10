@@ -12,15 +12,16 @@ repatched to use ArrSuite's release-pinned helper base, and validated.
 Helper-only changes are proposed on the stable `automation/upstream-review`
 branch.
 
-The workflow creates or refreshes one pull request, assigns it to
-`donselkirk`, and requests review. It never merges automatically. Network
-failures, unexpected helper layouts, checksum failures, or validation failures
-stop before the PR branch is updated.
+The workflow creates or refreshes one merge-ready pull request and assigns it
+to `donselkirk`. It never merges or enables auto-merge. Network failures,
+unexpected helper layouts, checksum failures, Codex failures, or validation
+failures stop before the PR branch is updated and create or refresh one assigned
+failure issue with the run report and local Codex repair instructions.
 
 Application install/CT changes are not imported blindly. They are listed in
 `upstream-review/pending.md` without advancing their locks. Instead of opening a
-competing deterministic PR, the workflow creates a fingerprinted issue and
-invokes the official Codex GitHub Action using a repository-owned prompt. Codex
+competing deterministic PR, the workflow invokes the official Codex GitHub
+Action using a repository-owned prompt. Codex
 adapts the modules without GitHub credentials under the `:workspace` permission
 profile with `sudo` removed. The workflow then independently verifies the expected
 locks, restricts changed paths, regenerates artifacts, runs the full test suite,
@@ -32,8 +33,14 @@ The Codex Action requires a repository Actions secret named `OPENAI_API_KEY`.
 The key is passed through the action's Responses API proxy and is never exposed
 to the later GitHub-authenticated PR step. Keep the action on its default
 `drop-sudo` safety strategy and the `:workspace` permission profile. The normal
-workflow `GITHUB_TOKEN` creates the tracking issue and, only after validation,
-pushes the review branch and opens the merge-ready PR.
+workflow `GITHUB_TOKEN` is provided only to the reporting and PR-publishing
+steps after Codex and deterministic validation complete. Successful runs do not
+create tracking issues.
+
+Failure issues are deduplicated under a stable title and assigned to
+`donselkirk`. A later successful run closes the open failure issue automatically.
+If local repair is required, use the issue instructions with Codex, open a PR
+that closes the issue, and manually squash-merge it after validation.
 
 ## Manual read-only check
 

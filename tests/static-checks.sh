@@ -358,6 +358,14 @@ grep -q 'persist-credentials: false' "$upstream_workflow"
 grep -q 'application-changes.tsv' "$upstream_workflow"
 grep -q 'Codex changed disallowed path' "$upstream_workflow"
 grep -q 'Codex merge-ready PR' "$upstream_workflow"
+grep -q 'automation: weekly upstream maintenance needs attention' "$upstream_workflow"
+grep -q 'needs-local-codex' "$upstream_workflow"
+grep -q 'if: failure()' "$upstream_workflow"
+grep -q 'Close recovered upstream failure issue' "$upstream_workflow"
+if rg -q 'Closes #\%s|Create Codex application-review task' "$upstream_workflow"; then
+  echo "Successful Codex reviews must not create or close a failure issue." >&2
+  exit 1
+fi
 if rg -q 'gh pr merge|--auto' "$upstream_workflow"; then
   echo "Upstream automation must never merge or enable auto-merge on a generated PR." >&2
   exit 1
@@ -370,6 +378,15 @@ if rg -q 'COPILOT_AGENT_TOKEN|copilot-swe-agent|github-copilot' "$upstream_workf
 fi
 grep -q 'pull_request:' "$release_workflow"
 grep -q "github.event_name == 'push'" "$release_workflow"
+grep -q 'name: validate-and-release' "$release_workflow"
+grep -q 'persist-credentials: false' "$release_workflow"
+grep -q 'git tag --points-at' "$release_workflow"
+grep -q "steps.version.outputs.exists != 'true'" "$release_workflow"
+grep -q 'report-release-failure:' "$release_workflow"
+grep -q 'automation: release needs attention' "$release_workflow"
+grep -q 'Close recovered release failure issue' "$release_workflow"
+[[ "$(grep -c 'contents: read' "$release_workflow")" -ge 2 ]]
+[[ "$(grep -c 'contents: write' "$release_workflow")" -eq 1 ]]
 grep -q '^name: Publish Wiki$' "$wiki_workflow"
 grep -q '      - "wiki/\*\*/\*.md"' "$wiki_workflow"
 grep -q '\.wiki\.git' "$wiki_workflow"

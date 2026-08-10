@@ -37,16 +37,21 @@ Proxmox node.
 
 ## Releases
 
-Every push to `main` runs GitHub Actions validation. A successful run creates
-the next patch release with an Important Changes summary, a full comparison
-link, `SHA256SUMS`, stable runtime assets, and the reviewed Community Scripts
-helper bundle. The workflow downloads the published payload and verifies its
-checksums before declaring the release complete.
+Protected `main` accepts changes only through a manually approved squash merge.
+Every resulting push runs GitHub Actions validation. A successful run creates
+or verifies exactly one patch release for that commit with an Important Changes
+summary, a full comparison link, `SHA256SUMS`, stable runtime assets, and the
+reviewed Community Scripts helper bundle. The workflow downloads the published
+payload and verifies its checksums before declaring the release complete.
 
-Pull requests run the same validation but never calculate a version, publish
-assets, or create a release. Automated upstream-review PRs with a pending
+Pull requests run the same validation with read-only repository permissions but
+never calculate a version, publish assets, or create a release. Automated
+upstream-review PRs with a pending
 application marker intentionally fail until the listed semantic adaptations
 are completed.
+
+Post-merge release failures create or refresh one assigned GitHub issue with
+the failing commit, run URL, stage results, and local Codex repair guidance.
 
 The Markdown files under `wiki/` are the canonical Wiki sources. Changes to
 them on `main` are published automatically by `.github/workflows/wiki.yml`;

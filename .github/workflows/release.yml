@@ -9,20 +9,24 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: arrsuite-release-${{ github.ref }}
+  group: arrsuite-release-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   validate-and-release:
+    name: validate-and-release
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install validation tools
         run: |
@@ -36,31 +40,49 @@ jobs:
           bash tests/static-checks.sh
           git diff --check
 
-      - name: Calculate next release version
-        if: github.event_name == 'push'
+  release:
+    if: github.event_name == 'push'
+    needs: validate-and-release
+    permissions:
+      contents: write
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
         id: version
         shell: bash
         run: |
-          latest="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -n '1p')"
-          if [[ -z "$latest" ]]; then
-            next="v1.0.0"
+          existing="$(git tag --points-at "$GITHUB_SHA" --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -n '1p')"
+          if [[ -n "$existing" ]]; then
+            next="$existing"
+            exists=true
+            previous="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -Fxv "$existing" | sed -n '1p')"
           else
-            version="${latest#v}"
-            IFS=. read -r major minor patch <<<"$version"
-            next="v${major}.${minor}.$((patch + 1))"
+            previous="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -n '1p')"
+            if [[ -z "$previous" ]]; then
+              next="v1.0.0"
+            else
+              version="${previous#v}"
+              IFS=. read -r major minor patch <<<"$version"
+              next="v${major}.${minor}.$((patch + 1))"
+            fi
+            exists=false
           fi
-          echo "previous=$latest" >>"$GITHUB_OUTPUT"
+          echo "previous=$previous" >>"$GITHUB_OUTPUT"
           echo "version=$next" >>"$GITHUB_OUTPUT"
+          echo "exists=$exists" >>"$GITHUB_OUTPUT"
 
       - name: Build release assets
-        if: github.event_name == 'push'
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          bash tools/build-release-assets.sh "$RELEASE_VERSION" dist
+        run: bash tools/build-release-assets.sh "$RELEASE_VERSION" dist
 
       - name: Generate release notes
-        if: github.event_name == 'push'
         env:
           PREVIOUS_VERSION: ${{ steps.version.outputs.previous }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
@@ -83,39 +105,80 @@ jobs:
           } >dist/RELEASE_NOTES.md
 
       - name: Create GitHub release
-        if: github.event_name == 'push'
+        if: steps.version.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           gh release create "$RELEASE_VERSION" \
-            dist/VERSION \
-            dist/SHA256SUMS \
-            dist/arrsuite.sh \
-            dist/arrsuite-ct.sh \
-            dist/arrsuite-install.sh \
-            dist/arrsuite-manager \
-            dist/arrsuite-motd.sh \
-            dist/fix-console-autologin.sh \
-            dist/seerr-backup.sh \
-            dist/build.func \
-            dist/install.func \
-            dist/tools.func \
-            dist/core.func \
-            dist/api.func \
-            dist/error_handler.func \
-            --target "$GITHUB_SHA" \
-            --title "ArrSuite $RELEASE_VERSION" \
-            --notes-file dist/RELEASE_NOTES.md
+            dist/VERSION dist/SHA256SUMS dist/arrsuite.sh dist/arrsuite-ct.sh \
+            dist/arrsuite-install.sh dist/arrsuite-manager dist/arrsuite-motd.sh \
+            dist/fix-console-autologin.sh dist/seerr-backup.sh dist/build.func \
+            dist/install.func dist/tools.func dist/core.func dist/api.func \
+            dist/error_handler.func --target "$GITHUB_SHA" \
+            --title "ArrSuite $RELEASE_VERSION" --notes-file dist/RELEASE_NOTES.md
 
       - name: Verify published release payload
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
+          release_target="$(gh release view "$RELEASE_VERSION" --json targetCommitish --jq .targetCommitish)"
+          if [[ "$release_target" != "$GITHUB_SHA" ]]; then
+            resolved_target="$(git rev-parse "${release_target}^{commit}" 2>/dev/null || true)"
+            [[ "$resolved_target" == "$GITHUB_SHA" ]] || {
+              echo "Release ${RELEASE_VERSION} targets ${release_target}, not ${GITHUB_SHA}." >&2
+              exit 1
+            }
+          fi
           mkdir -p published
           gh release download "$RELEASE_VERSION" --dir published
           cmp dist/VERSION published/VERSION
           cmp dist/SHA256SUMS published/SHA256SUMS
           (cd published && sha256sum -c SHA256SUMS)
+
+      - name: Close recovered release failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: "automation: release needs attention"
+        run: |
+          issue_number="$(gh issue list --state open --search "${ISSUE_TITLE} in:title" --json number,title --jq ".[] | select(.title == \"${ISSUE_TITLE}\") | .number" | head -n1)"
+          if [[ -n "$issue_number" ]]; then
+            gh issue close "$issue_number" --comment "Recovered automatically in run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
+          fi
+
+  report-release-failure:
+    if: always() && github.event_name == 'push' && (needs.validate-and-release.result == 'failure' || needs.release.result == 'failure')
+    needs:
+      - validate-and-release
+      - release
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update release failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: "automation: release needs attention"
+          VALIDATION_RESULT: ${{ needs.validate-and-release.result }}
+          RELEASE_RESULT: ${{ needs.release.result }}
+        run: |
+          gh label create automation --color 1D76DB --description "Created or maintained by automation" --force
+          gh label create needs-local-codex --color D93F0B --description "Needs local Codex investigation" --force
+          {
+            printf '## Release workflow failed\n\n'
+            printf -- '- Run: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf -- '- Main commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Validation result: `%s`\n' "$VALIDATION_RESULT"
+            printf -- '- Release result: `%s`\n\n' "$RELEASE_RESULT"
+            printf 'Use local Codex to inspect the linked logs, reproduce the failing validation or release step, and open a PR against `main`. The repair PR must reference and close this issue. Do not publish a replacement release manually unless the existing tag and assets have been audited first.\n'
+          } >release-failure.md
+          issue_number="$(gh issue list --state open --search "${ISSUE_TITLE} in:title" --json number,title --jq ".[] | select(.title == \"${ISSUE_TITLE}\") | .number" | head -n1)"
+          if [[ -z "$issue_number" ]]; then
+            gh issue create --title "$ISSUE_TITLE" --body-file release-failure.md \
+              --assignee donselkirk --label automation --label needs-local-codex
+          else
+            gh issue edit "$issue_number" --body-file release-failure.md \
+              --add-assignee donselkirk --add-label automation --add-label needs-local-codex
+          fi
