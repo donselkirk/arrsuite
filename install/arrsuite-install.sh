@@ -1215,7 +1215,7 @@ install_byparr() {
   msg_info "Configuring Byparr"
   cd /opt/Byparr
   $STD uv sync --link-mode copy || return
-  $STD uv run camoufox fetch || return
+  $STD uv run python -m invisible_playwright fetch || return
   msg_ok "Configured Byparr"
 
   write_byparr_service
@@ -1238,7 +1238,7 @@ update_byparr() {
       || { rm -rf "$stage_dir" "$stage_home"; return 1; }
     cd "$stage_dir"
     $STD uv sync --link-mode copy || return
-    $STD uv run camoufox fetch || return
+    $STD uv run python -m invisible_playwright fetch || return
     systemctl stop byparr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
     rm -rf "$previous_dir"
     mv /opt/Byparr "$previous_dir" || return

@@ -922,8 +922,10 @@ choose_and_set_storage_for_file() {
 _list_os_versions() {
   local ostype="${1:-}"
   [[ -n "$ostype" ]] || return 0
+  local arch
+  arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
   pveam available -section system 2>/dev/null |
-    grep -E '\.(tar\.zst|tar\.xz|tar\.gz)$' |
+    grep -E "_${arch}\.(tar\.zst|tar\.xz|tar\.gz)([[:space:]]|$)" |
     awk '{print $2}' |
     sed -nE "s/^${ostype}-([0-9]+(\.[0-9]+)?).*/\1/p" |
     sort -u -V || true
@@ -936,8 +938,10 @@ _list_os_versions() {
 _list_templates() {
   local search="${1:-}" pattern="${2:-}"
   [[ -n "$search" ]] || return 0
+  local arch
+  arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
   pveam available -section system 2>/dev/null |
-    grep -E '\.(tar\.zst|tar\.xz|tar\.gz)$' |
+    grep -E "_${arch}\.(tar\.zst|tar\.xz|tar\.gz)([[:space:]]|$)" |
     awk '{print $2}' |
     grep -E "^${search}.*${pattern}" |
     sort -t - -k 2 -V || true
@@ -5200,15 +5204,11 @@ EOF
     # TSTP = Ctrl+Z, TTIN = bg read from tty, TTOU = bg write to tty (tostop)
     trap '' TSTP TTIN TTOU
 
-    # lxc-attach takes the controlling terminal while the install runs and does
-    # not hand it back, leaving us in a background process group. Reading from
-    # the terminal then returns EIO instead of blocking, because SIGTTIN is
-    # ignored above - so every recovery prompt fails before the user can answer.
-    # Redirecting to /dev/tty does not help: the rule applies to the terminal,
-    # not the file descriptor. Claim the foreground group back; SIGTTOU is
-    # ignored too, so tcsetpgrp() succeeds instead of stopping us. No-op when we
-    # already are in the foreground. perl is a hard dependency of Proxmox VE.
-    perl -e 'use POSIX; open(my $t, "+<", "/dev/tty") or exit 1; POSIX::tcsetpgrp(fileno($t), getpgrp()) or exit 1;' 2>/dev/null || true
+    # lxc-attach left us in a background process group - claim the terminal back
+    # before we print anything. Note this does NOT hold: the log collection
+    # below uses pct pull/exec, which take it away again, so every interactive
+    # prompt has to reclaim it again right before its read.
+    reclaim_tty
 
     msg_error "Installation failed in container ${CTID} (exit code: ${install_exit_code})"
 
@@ -5338,6 +5338,7 @@ EOF
       pct enter "$CTID"
       echo ""
       echo -en "${YW}Container ${CTID} still running. Remove now? (y/N): ${CL}"
+      reclaim_tty
       if read -r response </dev/tty && [[ "$response" =~ ^[Yy]$ ]]; then
         pct stop "$CTID" &>/dev/null || true
         pct destroy "$CTID" &>/dev/null || true
@@ -5497,6 +5498,7 @@ EOF
 
     local response=""
     local read_rc
+    reclaim_tty
     read -t 60 -r response </dev/tty
     read_rc=$?
     if [[ $read_rc -eq 0 ]]; then
@@ -5761,6 +5763,7 @@ destroy_lxc() {
   trap 'echo; msg_error "Aborted by user (SIGINT/SIGQUIT)"; return 130' INT QUIT
 
   local prompt
+  reclaim_tty
   if ! read -rp "Remove this Container? <y/N> " prompt </dev/tty; then
     # read returns non-zero on Ctrl-D/ESC
     msg_error "Aborted input (Ctrl-D/ESC)"
@@ -6722,7 +6725,8 @@ create_lxc_container() {
     # Step 1: Check local templates first (instant)
     mapfile -t LOCAL_TEMPLATES < <(
       pveam list "$TEMPLATE_STORAGE" 2>/dev/null |
-        awk -v search="${TEMPLATE_SEARCH}" -v pattern="${TEMPLATE_PATTERN}" '$1 ~ search && $1 ~ pattern {print $1}' |
+        awk -v search="${TEMPLATE_SEARCH}" -v pattern="${TEMPLATE_PATTERN}" -v arch="${ARCH}" \
+          '$1 ~ search && $1 ~ pattern && $1 ~ ("_" arch "\\.(tar\\.zst|tar\\.xz|tar\\.gz)$") {print $1}' |
         sed 's|.*/||' | sort -t - -k 2 -V
     )
 

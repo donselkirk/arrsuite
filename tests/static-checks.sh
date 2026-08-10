@@ -91,6 +91,12 @@ cmp -s "$manager_tmp" "$standalone_manager" || {
   exit 1
 }
 
+[[ "$(grep -Fc 'uv run python -m invisible_playwright fetch' "$standalone_manager")" -eq 2 ]]
+if grep -Fq 'uv run camoufox fetch' "$standalone_manager"; then
+  echo "Byparr still uses the retired Camoufox browser fetch command." >&2
+  exit 1
+fi
+
 printf 'Checking generated templates...\n'
 for app in sonarr radarr lidarr prowlarr byparr flaresolverr seerr bazarr cleanuparr; do
   awk -v target="/etc/systemd/system/${app}.service" '
