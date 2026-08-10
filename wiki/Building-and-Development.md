@@ -53,6 +53,27 @@ are completed.
 Post-merge release failures create or refresh one assigned GitHub issue with
 the failing commit, run URL, stage results, and local Codex repair guidance.
 
+## Self-update compatibility
+
+`release/COMPATIBILITY` is part of the checksummed public release interface.
+Keep `minimum_direct_version` at the oldest version that can safely consume the
+current runtime assets. `bridge_version` must identify a retained release that
+is at least that new and older than the release being built. Never raise the
+minimum in the same release that first becomes incompatible: publish the bridge
+first, keep its assets available, and only then ship the gated release.
+
+Every PR that changes the manager, release assets, dependencies, filesystem
+layout, helper loading, or update process must explicitly assess skipped-version
+upgrades. Update the compatibility metadata and tests when a direct upgrade is
+not safe. The updater must fail before modifying local files and provide exact
+bridge and follow-up commands.
+
+Managers from before the compatibility contract ignore unknown metadata.
+Consequently, current release assets and the manager entry point must remain
+safe for the legacy download/install protocol and perform any required migration
+themselves. Do not treat a raised minimum alone as protection for those older
+installations.
+
 The Markdown files under `wiki/` are the canonical Wiki sources. Changes to
 them on `main` are published automatically by `.github/workflows/wiki.yml`;
 avoid editing the published GitHub Wiki separately.

@@ -54,6 +54,20 @@ optional and unchecked. LXC nesting must default to disabled.
 - Self-update must resolve `latest` to one exact release and verify all runtime
   and reviewed Community Scripts helper assets against that release's
   `SHA256SUMS` before installing them.
+- Every release must publish checksummed `COMPATIBILITY` metadata. Self-update
+  must compare the installed version before changing files, refuse downgrades,
+  and stop with exact pinned bridge-release and follow-up commands when the
+  installed version is too old for a direct upgrade. Preserve the legacy asset
+  protocol so older managers can continue reaching a compatible bridge.
+- Treat self-update compatibility as a required design review for every future
+  change. If a change cannot safely support direct upgrades from the current
+  minimum, first publish and retain a bridge release, then update
+  `release/COMPATIBILITY`, regression tests, documentation, and release notes in
+  the same PR.
+- Managers released before compatibility metadata cannot enforce a hop they do
+  not understand. Keep the latest manager and asset protocol directly safe for
+  those legacy updaters, including all required migrations, rather than relying
+  only on a raised minimum-version gate.
 - `/usr/bin/update` must attempt an ArrSuite self-update and then update every
   installed application. A self-update network failure must not prevent
   application updates.
@@ -183,6 +197,10 @@ systemd startup, release downloads, or web interfaces.
   manually squash-merged by `donselkirk`. The resulting push to `main` creates
   or verifies exactly one patch release with an Important Changes summary,
   full comparison link, and stable runtime assets.
+- Workflow, run, job, and step labels must describe whether they verify a PR,
+  publish a release, maintain upstream sources, report a failure, or publish
+  documentation. GitHub-maintained JavaScript actions must remain on a
+  supported Node.js runtime; static checks reject pre-Node.js-24 action majors.
 - After every merged change, verify the generated release and provide a
   cache-bypassing, version-pinned installation command using that release:
 

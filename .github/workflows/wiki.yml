@@ -1,4 +1,5 @@
-name: Publish Wiki
+name: Documentation Wiki Publication
+run-name: ${{ github.event_name == 'workflow_dispatch' && 'Manually publish repository documentation to the Wiki' || format('Publish merged documentation to the Wiki · {0}', github.event.head_commit.message) }}
 
 on:
   push:
@@ -18,12 +19,13 @@ concurrency:
 
 jobs:
   publish:
+    name: Validate and publish the repository Wiki pages
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the documentation source commit
+        uses: actions/checkout@v7.0.1
 
-      - name: Validate Wiki pages
+      - name: Verify every Wiki page has valid content and a title
         run: |
           test -s wiki/Home.md
           for page in wiki/*.md; do
@@ -33,7 +35,7 @@ jobs:
             }
           done
 
-      - name: Publish Wiki
+      - name: Synchronize the verified pages to the GitHub Wiki
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

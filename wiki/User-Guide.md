@@ -40,6 +40,15 @@ arrsuite restart sonarr
 application. A self-update network failure does not prevent application
 updates.
 
+Each release includes checksummed upgrade compatibility metadata. Before any
+runtime file is replaced, `arrsuite self-update` verifies that metadata,
+compares the installed and target versions, and refuses downgrades. When a
+direct jump is unsafe, it exits without changing the runtime and prints two
+ready-to-run commands: a version-pinned update to the required bridge release,
+then the normal self-update to the latest release. Follow those commands in the
+order shown. The standard `update` command reports the blocked self-update and
+continues updating installed applications.
+
 Updates for Sonarr, Radarr, Lidarr, Prowlarr, Seerr, and Bazarr first create a
 backup under `/opt/arrsuite/backups/pre-update/<app>/`. Cleanuparr archives its
 configuration under the same hierarchy. If a required backup fails, that
