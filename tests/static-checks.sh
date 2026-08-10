@@ -327,6 +327,7 @@ if grep -q '^    paths:$' "$release_workflow"; then
   exit 1
 fi
 grep -q 'bash tests/static-checks.sh' "$release_workflow"
+grep -q 'apt-get install -y shellcheck ripgrep' "$release_workflow"
 grep -q 'bash tools/build-artifacts.sh' "$release_workflow"
 grep -q 'git diff --exit-code' "$release_workflow"
 grep -q 'gh release create' "$release_workflow"
