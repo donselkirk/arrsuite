@@ -64,9 +64,9 @@ Stateful applications create a pre-update backup before their program files
 are replaced; Cleanuparr similarly archives `/etc/cleanuparr` before updates.
 
 Self-update checks the installed ArrSuite version against checksummed release
-compatibility metadata before replacing files. If an older installation needs
-an intermediate release, it stops safely and prints the exact pinned bridge
-command followed by the normal `arrsuite self-update` command. Application
+compatibility metadata before replacing files. Installations older than the
+verified direct-upgrade baseline receive exact commands for the required
+multi-pass bridge and any historical helper-repository repair. Application
 updates still continue when the standard `update` command encounters a blocked
 or unavailable ArrSuite self-update.
 

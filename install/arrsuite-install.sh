@@ -1919,7 +1919,8 @@ version_is_older() {
 
 self_update() {
   local update_url asset_url temp_dir release_version current_version="v0.0.0"
-  local compatibility_schema minimum_direct_version bridge_version runtime_file backup_file helper changed=0
+  local compatibility_schema minimum_direct_version bridge_version bridge_runs
+  local legacy_helper_fix_before legacy_helper_url runtime_file backup_file helper changed=0
   update_url="${ARRSUITE_UPDATE_BASE_URL:-}"
   if [[ -z "$update_url" && -r "$UPDATE_URL_FILE" ]]; then
     update_url="$(<"$UPDATE_URL_FILE")"
@@ -1956,14 +1957,21 @@ self_update() {
     compatibility_schema="$(sed -n 's/^schema=//p' "${temp_dir}/COMPATIBILITY")"
     minimum_direct_version="$(sed -n 's/^minimum_direct_version=//p' "${temp_dir}/COMPATIBILITY")"
     bridge_version="$(sed -n 's/^bridge_version=//p' "${temp_dir}/COMPATIBILITY")"
-    if [[ "$compatibility_schema" != "1" \
+    bridge_runs="$(sed -n 's/^bridge_runs=//p' "${temp_dir}/COMPATIBILITY")"
+    legacy_helper_fix_before="$(sed -n 's/^legacy_helper_fix_before=//p' "${temp_dir}/COMPATIBILITY")"
+    legacy_helper_url="$(sed -n 's/^legacy_helper_url=//p' "${temp_dir}/COMPATIBILITY")"
+    if [[ "$compatibility_schema" != "2" \
       || ! "$minimum_direct_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ \
-      || ! "$bridge_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      || ! "$bridge_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ \
+      || ! "$bridge_runs" =~ ^[1-9][0-9]*$ \
+      || ! "$legacy_helper_fix_before" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ \
+      || ! "$legacy_helper_url" =~ ^https:// ]]; then
       rm -rf "$temp_dir"
       msg_error "ArrSuite upgrade compatibility metadata is invalid"
       return 1
     fi
-    if version_is_older "$bridge_version" "$minimum_direct_version" \
+    if ! version_is_older "$legacy_helper_fix_before" "$minimum_direct_version" \
+      || version_is_older "$bridge_version" "$minimum_direct_version" \
       || ! version_is_older "$bridge_version" "$release_version"; then
       rm -rf "$temp_dir"
       msg_error "ArrSuite upgrade compatibility metadata has no valid bridge release"
@@ -1972,6 +1980,9 @@ self_update() {
   else
     minimum_direct_version="v0.0.0"
     bridge_version="v0.0.0"
+    bridge_runs=1
+    legacy_helper_fix_before="v0.0.0"
+    legacy_helper_url=""
   fi
 
   if [[ -r "$VERSION_FILE" ]] && grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' "$VERSION_FILE"; then
@@ -1985,8 +1996,17 @@ self_update() {
   if version_is_older "$current_version" "$minimum_direct_version"; then
     rm -rf "$temp_dir"
     msg_error "ArrSuite ${release_version} cannot be installed directly from ${current_version}."
-    msg_error "Upgrade to ${bridge_version} first, then run the normal self-update again:"
-    printf '\n  ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/%s" arrsuite self-update\n' "$bridge_version" >&2
+    msg_error "Upgrade through ${bridge_version} first, then run the normal self-update:"
+    printf '\n' >&2
+    if version_is_older "$current_version" "$legacy_helper_fix_before"; then
+      printf '  COMMUNITY_SCRIPTS_URL="%s" \\\n' "$legacy_helper_url" >&2
+      printf '  ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/%s" arrsuite self-update\n' "$bridge_version" >&2
+      bridge_runs=$((bridge_runs - 1))
+    fi
+    while ((bridge_runs > 0)); do
+      printf '  ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/%s" arrsuite self-update\n' "$bridge_version" >&2
+      bridge_runs=$((bridge_runs - 1))
+    done
     printf '  arrsuite self-update\n\n' >&2
     return 1
   fi

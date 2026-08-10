@@ -100,16 +100,20 @@ PYTHON
   */fix-console-autologin.sh) source_file="${PROJECT_ROOT}/tools/fix-console-autologin.sh" ;;
   */VERSION) printf '%s\n' "${TEST_RELEASE_VERSION:-v9.8.7}" >"$output"; exit 0 ;;
   */COMPATIBILITY)
-    printf 'schema=1\nminimum_direct_version=%s\nbridge_version=%s\n' \
-      "${TEST_MIN_DIRECT_VERSION:-v1.0.0}" "${TEST_BRIDGE_VERSION:-v1.0.37}" >"$output"
+    printf 'schema=2\nminimum_direct_version=%s\nbridge_version=%s\nbridge_runs=%s\nlegacy_helper_fix_before=%s\nlegacy_helper_url=%s\n' \
+      "${TEST_MIN_DIRECT_VERSION:-v1.0.31}" "${TEST_BRIDGE_VERSION:-v1.0.31}" \
+      "${TEST_BRIDGE_RUNS:-2}" "${TEST_LEGACY_HELPER_FIX_BEFORE:-v1.0.29}" \
+      "${TEST_LEGACY_HELPER_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}" >"$output"
     exit 0
     ;;
   */SHA256SUMS)
     version_file="$(mktemp)"
     compatibility_file="$(mktemp)"
     printf '%s\n' "${TEST_RELEASE_VERSION:-v9.8.7}" >"$version_file"
-    printf 'schema=1\nminimum_direct_version=%s\nbridge_version=%s\n' \
-      "${TEST_MIN_DIRECT_VERSION:-v1.0.0}" "${TEST_BRIDGE_VERSION:-v1.0.37}" >"$compatibility_file"
+    printf 'schema=2\nminimum_direct_version=%s\nbridge_version=%s\nbridge_runs=%s\nlegacy_helper_fix_before=%s\nlegacy_helper_url=%s\n' \
+      "${TEST_MIN_DIRECT_VERSION:-v1.0.31}" "${TEST_BRIDGE_VERSION:-v1.0.31}" \
+      "${TEST_BRIDGE_RUNS:-2}" "${TEST_LEGACY_HELPER_FIX_BEFORE:-v1.0.29}" \
+      "${TEST_LEGACY_HELPER_URL:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}" >"$compatibility_file"
     printf '%s  arrsuite-manager\n' "$(sha256sum "${PROJECT_ROOT}/tools/arrsuite-manager" | awk '{print $1}')" >"$output"
     printf '%s  arrsuite-motd.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/arrsuite-motd.sh" | awk '{print $1}')" >>"$output"
     printf '%s  fix-console-autologin.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/fix-console-autologin.sh" | awk '{print $1}')" >>"$output"
@@ -426,19 +430,34 @@ grep -qx 'radarr' "$test_root/restarts.log"
 
 printf 'v1.0.10\n' >"$test_root/version"
 export TEST_MIN_DIRECT_VERSION=v1.0.20
-export TEST_BRIDGE_VERSION=v1.0.37
+export TEST_BRIDGE_VERSION=v1.0.20
+export TEST_BRIDGE_RUNS=2
+export TEST_LEGACY_HELPER_FIX_BEFORE=v1.0.15
 if blocked_update_output="$(run_manager self-update 2>&1)"; then
   echo "An incompatible direct self-update unexpectedly succeeded." >&2
   exit 1
 fi
 grep -q 'cannot be installed directly from v1.0.10' <<<"$blocked_update_output"
-grep -q 'Upgrade to v1.0.37 first' <<<"$blocked_update_output"
-grep -q 'ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/v1.0.37" arrsuite self-update' \
-  <<<"$blocked_update_output"
+grep -q 'Upgrade through v1.0.20 first' <<<"$blocked_update_output"
+[[ "$(grep -c 'ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/v1.0.20" arrsuite self-update' <<<"$blocked_update_output")" == 2 ]]
+grep -q 'COMMUNITY_SCRIPTS_URL="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main"' <<<"$blocked_update_output"
 grep -q '^  arrsuite self-update$' <<<"$blocked_update_output"
 [[ ! -e "$test_root/runtime/arrsuite" ]]
 
+printf 'v1.0.16\n' >"$test_root/version"
+if bridge_output="$(run_manager self-update 2>&1)"; then
+  echo "An incompatible direct self-update unexpectedly succeeded." >&2
+  exit 1
+fi
+[[ "$(grep -c 'ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/v1.0.20" arrsuite self-update' <<<"$bridge_output")" == 2 ]]
+if grep -q 'COMMUNITY_SCRIPTS_URL=' <<<"$bridge_output"; then
+  echo "The helper URL repair was shown for a version that does not need it." >&2
+  exit 1
+fi
+
 export TEST_MIN_DIRECT_VERSION=v1.0.0
+export TEST_BRIDGE_VERSION=v1.0.20
+export TEST_LEGACY_HELPER_FIX_BEFORE=v0.0.1
 self_update_output="$(run_manager self-update)"
 grep -q 'Updated ArrSuite Runtime to v9.8.7' <<<"$self_update_output"
 # A legacy installation has no local helper bundle. Self-update must repair it

@@ -107,8 +107,12 @@ jobs:
             printf '\n\n## Upgrade compatibility\n\n'
             minimum_direct_version="$(sed -n 's/^minimum_direct_version=//p' release/COMPATIBILITY)"
             bridge_version="$(sed -n 's/^bridge_version=//p' release/COMPATIBILITY)"
+            bridge_runs="$(sed -n 's/^bridge_runs=//p' release/COMPATIBILITY)"
+            legacy_helper_fix_before="$(sed -n 's/^legacy_helper_fix_before=//p' release/COMPATIBILITY)"
             printf 'Direct self-update is supported from ArrSuite %s or newer. ' "$minimum_direct_version"
-            printf 'Older or unversioned installations are directed through %s with exact commands before any runtime files are changed.\n' "$bridge_version"
+            printf 'Installations through v1.0.30 require %s pinned passes through %s; ' "$bridge_runs" "$bridge_version"
+            printf 'versions before %s also require the historical Community Scripts helper URL repair. ' "$legacy_helper_fix_before"
+            printf 'The updater prints the exact commands before changing runtime files. Compatibility metadata is enforced by v1.0.38 and newer managers; older managers must follow these release-note instructions.\n'
           } >dist/RELEASE_NOTES.md
 
       - name: Publish the GitHub release when it does not already exist
