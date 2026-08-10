@@ -66,7 +66,8 @@ are replaced; Cleanuparr similarly archives `/etc/cleanuparr` before updates.
 Self-update checks the installed ArrSuite version against checksummed release
 compatibility metadata before replacing files. Installations older than the
 verified direct-upgrade baseline receive exact commands for the required
-multi-pass bridge and any historical helper-repository repair. Application
+multi-pass bridge, any historical helper-repository repair, and an explicit
+return to the latest-release URL so the bridge does not remain pinned. Application
 updates still continue when the standard `update` command encounters a blocked
 or unavailable ArrSuite self-update.
 

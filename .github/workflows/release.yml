@@ -112,6 +112,8 @@ jobs:
             printf 'Direct self-update is supported from ArrSuite %s or newer. ' "$minimum_direct_version"
             printf 'Installations through v1.0.30 require %s pinned passes through %s; ' "$bridge_runs" "$bridge_version"
             printf 'versions before %s also require the historical Community Scripts helper URL repair. ' "$legacy_helper_fix_before"
+            printf 'The final command explicitly restores releases/latest/download because older managers persist the pinned bridge URL. '
+            printf 'If v1.0.31 incorrectly reports no update, run `ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/latest/download" arrsuite self-update`. '
             printf 'The updater prints the exact commands before changing runtime files. Compatibility metadata is enforced by v1.0.38 and newer managers; older managers must follow these release-note instructions.\n'
           } >dist/RELEASE_NOTES.md
 

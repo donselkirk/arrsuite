@@ -64,7 +64,11 @@ optional and unchecked. LXC nesting must default to disabled.
   reaching a compatible bridge.
 - The evidence-backed direct-upgrade baseline is v1.0.31, when the complete
   checksummed helper bundle was first published. v1.0.29 and v1.0.30 require
-  two pinned v1.0.31 self-update passes before updating normally. Earlier or
+  two pinned v1.0.31 self-update passes, followed by an explicit
+  `ARRSUITE_UPDATE_BASE_URL=https://github.com/donselkirk/arrsuite/releases/latest/download`
+  self-update. Never use a plain final command: the old manager persists the
+  bridge in `/opt/arrsuite/update.url` and will incorrectly report no update.
+  Earlier or
   unversioned installs require the same two-pass bridge, with
   `COMMUNITY_SCRIPTS_URL=https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main`
   on the first pass because those managers default to the retired
