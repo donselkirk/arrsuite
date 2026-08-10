@@ -162,7 +162,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .github/codex/prompts/upstream-review.md
           output-file: upstream-report/codex-summary.md
-          permission-profile: ":workspace"
+          sandbox: workspace-write
           safety-strategy: drop-sudo
           codex-args: '["--ephemeral"]'
 

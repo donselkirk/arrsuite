@@ -120,7 +120,8 @@ focused diffs under `upstream-report/`. The weekly automation uses
 updates into the stable `automation/upstream-review` PR branch. When application
 behavior changes, it runs the official Codex GitHub Action with the repository's
 focused prompt and no GitHub credentials.
-Codex must adapt the ArrSuite modules, advance locks only after review, and
+Codex must adapt the ArrSuite modules under the `workspace-write` sandbox,
+advance locks only after review, and
 remove `upstream-review/pending.md`. Deterministic post-agent checks enforce
 expected locks, an allowed-path boundary, artifact generation, and the full test
 suite before a separate authenticated step opens a merge-ready PR assigned to

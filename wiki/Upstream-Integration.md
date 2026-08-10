@@ -22,8 +22,8 @@ Application install/CT changes are not imported blindly. They are listed in
 `upstream-review/pending.md` without advancing their locks. Instead of opening a
 competing deterministic PR, the workflow invokes the official Codex GitHub
 Action using a repository-owned prompt. Codex
-adapts the modules without GitHub credentials under the `:workspace` permission
-profile with `sudo` removed. The workflow then independently verifies the expected
+adapts the modules without GitHub credentials in the `workspace-write` sandbox
+with `sudo` removed. The workflow then independently verifies the expected
 locks, restricts changed paths, regenerates artifacts, runs the full test suite,
 and opens a merge-ready PR to `main`. Pull-request validation remains blocked
 until the pending file is removed, and only `donselkirk` can manually merge the
@@ -32,7 +32,7 @@ result; the automation never merges or enables auto-merge.
 The Codex Action requires a repository Actions secret named `OPENAI_API_KEY`.
 The key is passed through the action's Responses API proxy and is never exposed
 to the later GitHub-authenticated PR step. Keep the action on its default
-`drop-sudo` safety strategy and the `:workspace` permission profile. The normal
+`drop-sudo` safety strategy and the `workspace-write` sandbox. The normal
 workflow `GITHUB_TOKEN` is provided only to the reporting and PR-publishing
 steps after Codex and deterministic validation complete. Successful runs do not
 create tracking issues.
