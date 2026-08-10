@@ -20,7 +20,7 @@ command -v git >/dev/null || { echo "git is required." >&2; exit 2; }
 
 mkdir -p "$report_dir"
 rm -f "${report_dir}"/*.diff "${report_dir}/summary.md" "${report_dir}/pr-body.md" \
-  "${report_dir}/agent-body.md"
+  "${report_dir}/agent-body.md" "${report_dir}/application-changes.tsv"
 helper_changes=()
 application_changes=()
 
@@ -130,7 +130,7 @@ while IFS=$'\t' read -r category name kind repository path locked_blob vendored_
     printf -- '- Imported reviewed helper **%s**: `%s` → `%s`\n' "$name" "$locked_blob" "$current_blob" \
       >>"${report_dir}/summary.md"
   else
-    application_changes+=("${name} ${kind}|${current_repository}/${path}|${locked_blob}|${current_blob}")
+    application_changes+=("${name} ${kind}|${current_repository}|${path}|${locked_blob}|${current_blob}")
     # shellcheck disable=SC2016 # Markdown backticks are literal.
     printf -- '- Manual adaptation required for **%s %s**: `%s` → `%s`\n' "$name" "$kind" "$locked_blob" "$current_blob" \
       >>"${report_dir}/summary.md"
@@ -143,13 +143,19 @@ done < <(jq -r '
 
 if ((${#application_changes[@]})); then
   mkdir -p "$(dirname "$pending_file")"
+  : >"${report_dir}/application-changes.tsv"
   {
     printf '# Pending Community Scripts application review\n\n'
     printf '> Do not merge this PR until every item is adapted, tested, locked, and this file is removed.\n\n'
     for entry in "${application_changes[@]}"; do
-      IFS='|' read -r label source old_blob new_blob <<<"$entry"
+      IFS='|' read -r label repository path old_blob new_blob <<<"$entry"
+      source="${repository}/${path}"
       # shellcheck disable=SC2016 # Markdown backticks are literal.
       printf -- '- [ ] **%s** — `%s`: `%s` → `%s`\n' "$label" "$source" "$old_blob" "$new_blob"
+      app="${label% *}"
+      kind="${label##* }"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$app" "$kind" "$repository" "$path" "$old_blob" "$new_blob" \
+        >>"${report_dir}/application-changes.tsv"
     done
   } >"$pending_file"
 else
@@ -184,7 +190,7 @@ if ((${#application_changes[@]})); then
     cat <<'EOF_AGENT_INTRO'
 ## Community Scripts application adaptation required
 
-The weekly deterministic review found application behavior changes that require semantic review. Use the repository custom agent `arrsuite-upstream`.
+The weekly deterministic review found application behavior changes that require semantic review by the Codex GitHub Action.
 
 EOF_AGENT_INTRO
     cat "$pending_file"
@@ -199,7 +205,7 @@ EOF_AGENT_INTRO
 - Import any mechanically safe helper changes produced by the preparer.
 - Remove `upstream-review/pending.md` only after every listed change is resolved.
 - Run `bash tools/build-artifacts.sh`, `bash tests/static-checks.sh`, and `git diff --check`.
-- Open a draft pull request to `main`. Never merge it. Assign and request review from `donselkirk`.
+- Leave the completed, validated changes in the working tree. The workflow opens the draft pull request separately.
 
 The pull request must summarize the upstream behavior changes, ArrSuite adaptations, tests run, and any Proxmox validation still required.
 EOF_AGENT_TASK

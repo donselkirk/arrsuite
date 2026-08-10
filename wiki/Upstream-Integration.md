@@ -20,16 +20,20 @@ stop before the PR branch is updated.
 Application install/CT changes are not imported blindly. They are listed in
 `upstream-review/pending.md` without advancing their locks. Instead of opening a
 competing deterministic PR, the workflow creates a fingerprinted issue and
-assigns the repository's `arrsuite-upstream` GitHub Copilot agent. Copilot
-adapts the modules, runs the required checks, and opens a draft PR to `main`.
-Pull-request validation remains blocked until the pending file is removed, and
-only `donselkirk` reviews and merges the result.
+invokes the official Codex GitHub Action using a repository-owned prompt. Codex
+adapts the modules without GitHub credentials under the `:workspace` permission
+profile with `sudo` removed. The workflow then independently verifies the expected
+locks, restricts changed paths, regenerates artifacts, runs the full test suite,
+and opens a draft PR to `main`. Pull-request validation remains blocked until
+the pending file is removed, and only `donselkirk` reviews and merges the
+result.
 
-Programmatic assignment requires a repository Actions secret named
-`COPILOT_AGENT_TOKEN`. Store a user token for an account with GitHub Copilot
-cloud agent access and Issues write permission for this repository. The normal
-workflow `GITHUB_TOKEN` creates the issue; the user token is used only to start
-the Copilot session. Keep Copilot cloud agent's firewall enabled.
+The Codex Action requires a repository Actions secret named `OPENAI_API_KEY`.
+The key is passed through the action's Responses API proxy and is never exposed
+to the later GitHub-authenticated PR step. Keep the action on its default
+`drop-sudo` safety strategy and the `:workspace` permission profile. The normal
+workflow `GITHUB_TOKEN` creates the tracking issue and, only after validation,
+pushes the review branch and opens the draft PR.
 
 ## Manual read-only check
 
@@ -50,7 +54,7 @@ and focused diffs are also uploaded as run artifacts.
 
 ## Import reviewed behavior
 
-1. Review the automated helper PR or the Copilot-created application PR and its
+1. Review the automated helper PR or the Codex-created application PR and its
    focused report.
 2. For pending application items, verify the relevant `apps/<app>.sh` and
    templates cover the upstream behavior before accepting the updated lock.

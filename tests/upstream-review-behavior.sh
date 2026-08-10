@@ -33,6 +33,7 @@ grep -qx 'application_changes=false' "$review_root/upstream-report/result.env"
 printf 'tool helper new\n' >"$review_root/fixture/community-scripts/ProxmoxVE/misc/tools.func"
 printf 'sonarr new\n' >"$review_root/fixture/community-scripts/ProxmoxVE/install/sonarr-install.sh"
 new_helper_blob="$(git hash-object "$review_root/fixture/community-scripts/ProxmoxVE/misc/tools.func")"
+new_app_blob="$(git hash-object "$review_root/fixture/community-scripts/ProxmoxVE/install/sonarr-install.sh")"
 ARRSUITE_PROJECT_ROOT="$review_root" UPSTREAM_FIXTURE_DIR="$review_root/fixture" \
   bash "$project_root/tools/prepare-upstream-review.sh" >/dev/null
 grep -qx 'state=candidate' "$review_root/upstream-report/result.env"
@@ -42,8 +43,10 @@ grep -qx 'tool helper new' "$review_root/vendor/community-scripts/misc/tools.fun
 [[ "$(jq -r '.applications.sonarr.install.blob' "$review_root/tools/upstream-lock.json")" == "$old_app_blob" ]]
 grep -q 'Do not merge this PR' "$review_root/upstream-review/pending.md"
 grep -q 'sonarr install' "$review_root/upstream-review/pending.md"
-grep -q 'arrsuite-upstream' "$review_root/upstream-report/agent-body.md"
-grep -q 'Open a draft pull request' "$review_root/upstream-report/agent-body.md"
+grep -q 'Codex GitHub Action' "$review_root/upstream-report/agent-body.md"
+expected_application_change="$(printf 'sonarr\tinstall\tcommunity-scripts/ProxmoxVE\tinstall/sonarr-install.sh\t%s\t%s' "$old_app_blob" "$new_app_blob")"
+grep -Fqx "$expected_application_change" \
+  "$review_root/upstream-report/application-changes.tsv"
 
 printf 'sonarr old\n' >"$review_root/fixture/community-scripts/ProxmoxVE/install/sonarr-install.sh"
 ARRSUITE_PROJECT_ROOT="$review_root" UPSTREAM_FIXTURE_DIR="$review_root/fixture" \
