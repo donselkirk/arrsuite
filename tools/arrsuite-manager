@@ -1745,8 +1745,18 @@ restart_apps() {
   msg_ok "All requested ArrSuite applications restarted"
 }
 
+version_is_older() {
+  local current="$1" required="$2" first
+  [[ "$current" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 2
+  [[ "$required" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 2
+  [[ "$current" != "$required" ]] || return 1
+  first="$(printf '%s\n%s\n' "$current" "$required" | sort -V | sed -n '1p')"
+  [[ "$first" == "$current" ]]
+}
+
 self_update() {
-  local update_url asset_url temp_dir release_version runtime_file backup_file helper changed=0
+  local update_url asset_url temp_dir release_version current_version="v0.0.0"
+  local compatibility_schema minimum_direct_version bridge_version runtime_file backup_file helper changed=0
   update_url="${ARRSUITE_UPDATE_BASE_URL:-}"
   if [[ -z "$update_url" && -r "$UPDATE_URL_FILE" ]]; then
     update_url="$(<"$UPDATE_URL_FILE")"
@@ -1767,10 +1777,60 @@ self_update() {
     asset_url="https://github.com/donselkirk/arrsuite/releases/download/${release_version}"
   fi
 
+  if ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/SHA256SUMS" -o "${temp_dir}/SHA256SUMS"; then
+    rm -rf "$temp_dir"
+    msg_error "Failed to download the ArrSuite release checksums"
+    return 1
+  fi
+
+  if grep -q ' COMPATIBILITY$' "${temp_dir}/SHA256SUMS"; then
+    if ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/COMPATIBILITY" -o "${temp_dir}/COMPATIBILITY" \
+      || ! (cd "$temp_dir" && sha256sum -c --ignore-missing SHA256SUMS >/dev/null); then
+      rm -rf "$temp_dir"
+      msg_error "Failed to download or verify ArrSuite upgrade compatibility metadata"
+      return 1
+    fi
+    compatibility_schema="$(sed -n 's/^schema=//p' "${temp_dir}/COMPATIBILITY")"
+    minimum_direct_version="$(sed -n 's/^minimum_direct_version=//p' "${temp_dir}/COMPATIBILITY")"
+    bridge_version="$(sed -n 's/^bridge_version=//p' "${temp_dir}/COMPATIBILITY")"
+    if [[ "$compatibility_schema" != "1" \
+      || ! "$minimum_direct_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ \
+      || ! "$bridge_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      rm -rf "$temp_dir"
+      msg_error "ArrSuite upgrade compatibility metadata is invalid"
+      return 1
+    fi
+    if version_is_older "$bridge_version" "$minimum_direct_version" \
+      || ! version_is_older "$bridge_version" "$release_version"; then
+      rm -rf "$temp_dir"
+      msg_error "ArrSuite upgrade compatibility metadata has no valid bridge release"
+      return 1
+    fi
+  else
+    minimum_direct_version="v0.0.0"
+    bridge_version="v0.0.0"
+  fi
+
+  if [[ -r "$VERSION_FILE" ]] && grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' "$VERSION_FILE"; then
+    current_version="$(<"$VERSION_FILE")"
+  fi
+  if version_is_older "$release_version" "$current_version"; then
+    rm -rf "$temp_dir"
+    msg_error "Refusing to downgrade ArrSuite from ${current_version} to ${release_version}"
+    return 1
+  fi
+  if version_is_older "$current_version" "$minimum_direct_version"; then
+    rm -rf "$temp_dir"
+    msg_error "ArrSuite ${release_version} cannot be installed directly from ${current_version}."
+    msg_error "Upgrade to ${bridge_version} first, then run the normal self-update again:"
+    printf '\n  ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/%s" arrsuite self-update\n' "$bridge_version" >&2
+    printf '  arrsuite self-update\n\n' >&2
+    return 1
+  fi
+
   if ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/arrsuite-manager" -o "${temp_dir}/arrsuite" \
     || ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/arrsuite-motd.sh" -o "${temp_dir}/arrsuite-motd.sh" \
-    || ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh" \
-    || ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/SHA256SUMS" -o "${temp_dir}/SHA256SUMS"; then
+    || ! curl -fsSL --retry 3 --retry-all-errors "${asset_url}/fix-console-autologin.sh" -o "${temp_dir}/fix-console-autologin.sh"; then
     rm -rf "$temp_dir"
     msg_error "Failed to download ArrSuite update files"
     return 1

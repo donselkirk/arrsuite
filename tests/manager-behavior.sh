@@ -98,18 +98,29 @@ PYTHON
   */arrsuite-manager) source_file="${PROJECT_ROOT}/tools/arrsuite-manager" ;;
   */arrsuite-motd.sh) source_file="${PROJECT_ROOT}/tools/arrsuite-motd.sh" ;;
   */fix-console-autologin.sh) source_file="${PROJECT_ROOT}/tools/fix-console-autologin.sh" ;;
-  */VERSION) printf 'v9.8.7\n' >"$output"; exit 0 ;;
+  */VERSION) printf '%s\n' "${TEST_RELEASE_VERSION:-v9.8.7}" >"$output"; exit 0 ;;
+  */COMPATIBILITY)
+    printf 'schema=1\nminimum_direct_version=%s\nbridge_version=%s\n' \
+      "${TEST_MIN_DIRECT_VERSION:-v1.0.0}" "${TEST_BRIDGE_VERSION:-v1.0.37}" >"$output"
+    exit 0
+    ;;
   */SHA256SUMS)
     version_file="$(mktemp)"
-    printf 'v9.8.7\n' >"$version_file"
+    compatibility_file="$(mktemp)"
+    printf '%s\n' "${TEST_RELEASE_VERSION:-v9.8.7}" >"$version_file"
+    printf 'schema=1\nminimum_direct_version=%s\nbridge_version=%s\n' \
+      "${TEST_MIN_DIRECT_VERSION:-v1.0.0}" "${TEST_BRIDGE_VERSION:-v1.0.37}" >"$compatibility_file"
     printf '%s  arrsuite-manager\n' "$(sha256sum "${PROJECT_ROOT}/tools/arrsuite-manager" | awk '{print $1}')" >"$output"
     printf '%s  arrsuite-motd.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/arrsuite-motd.sh" | awk '{print $1}')" >>"$output"
     printf '%s  fix-console-autologin.sh\n' "$(sha256sum "${PROJECT_ROOT}/tools/fix-console-autologin.sh" | awk '{print $1}')" >>"$output"
     printf '%s  VERSION\n' "$(sha256sum "$version_file" | awk '{print $1}')" >>"$output"
+    if [[ "${TEST_INCLUDE_COMPATIBILITY:-1}" == "1" ]]; then
+      printf '%s  COMPATIBILITY\n' "$(sha256sum "$compatibility_file" | awk '{print $1}')" >>"$output"
+    fi
     for helper in build.func install.func tools.func core.func api.func error_handler.func; do
       printf '%s  %s\n' "$(sha256sum "${PROJECT_ROOT}/vendor/community-scripts/misc/${helper}" | awk '{print $1}')" "$helper" >>"$output"
     done
-    rm -f "$version_file"
+    rm -f "$version_file" "$compatibility_file"
     exit 0
     ;;
   */build.func|*/install.func|*/tools.func|*/core.func|*/api.func|*/error_handler.func)
@@ -413,6 +424,21 @@ if SYSTEMCTL_FAIL_SERVICE=sonarr run_manager restart; then
 fi
 grep -qx 'radarr' "$test_root/restarts.log"
 
+printf 'v1.0.10\n' >"$test_root/version"
+export TEST_MIN_DIRECT_VERSION=v1.0.20
+export TEST_BRIDGE_VERSION=v1.0.37
+if blocked_update_output="$(run_manager self-update 2>&1)"; then
+  echo "An incompatible direct self-update unexpectedly succeeded." >&2
+  exit 1
+fi
+grep -q 'cannot be installed directly from v1.0.10' <<<"$blocked_update_output"
+grep -q 'Upgrade to v1.0.37 first' <<<"$blocked_update_output"
+grep -q 'ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/v1.0.37" arrsuite self-update' \
+  <<<"$blocked_update_output"
+grep -q '^  arrsuite self-update$' <<<"$blocked_update_output"
+[[ ! -e "$test_root/runtime/arrsuite" ]]
+
+export TEST_MIN_DIRECT_VERSION=v1.0.0
 self_update_output="$(run_manager self-update)"
 grep -q 'Updated ArrSuite Runtime to v9.8.7' <<<"$self_update_output"
 # A legacy installation has no local helper bundle. Self-update must repair it
@@ -422,6 +448,22 @@ for helper in build.func install.func tools.func core.func api.func error_handle
 done
 current_output="$(run_manager self-update)"
 grep -q 'ArrSuite Runtime is Already Current at v9.8.7' <<<"$current_output"
+export TEST_INCLUDE_COMPATIBILITY=0
+legacy_metadata_output="$(run_manager self-update)"
+grep -q 'ArrSuite Runtime is Already Current at v9.8.7' <<<"$legacy_metadata_output"
+unset TEST_INCLUDE_COMPATIBILITY
+
+runtime_checksum="$(sha256sum "$test_root/runtime/arrsuite")"
+rm -f "$test_root/version"
+export TEST_MIN_DIRECT_VERSION=v1.0.20
+if unknown_version_output="$(run_manager self-update 2>&1)"; then
+  echo "An unversioned incompatible self-update unexpectedly succeeded." >&2
+  exit 1
+fi
+grep -q 'cannot be installed directly from v0.0.0' <<<"$unknown_version_output"
+[[ "$(sha256sum "$test_root/runtime/arrsuite")" == "$runtime_checksum" ]]
+printf 'v9.8.7\n' >"$test_root/version"
+export TEST_MIN_DIRECT_VERSION=v1.0.0
 export ARRSUITE_TEST_MANAGER_PATH=/proc/1/arrsuite-test-unwritable
 if failed_update_output="$(run_manager self-update 2>&1)"; then
   echo "A failed runtime file installation unexpectedly succeeded." >&2
@@ -437,6 +479,14 @@ cmp -s "$project_root/tools/arrsuite-motd.sh" "$test_root/runtime/arrsuite-motd.
 cmp -s "$project_root/tools/fix-console-autologin.sh" "$test_root/runtime/fix-console-autologin.sh"
 grep -qx 'v9.8.7' "$test_root/version"
 grep -q 'ArrSuite v9.8.7' < <(run_manager version)
+
+printf 'v9.9.0\n' >"$test_root/version"
+if downgrade_output="$(run_manager self-update 2>&1)"; then
+  echo "A self-update downgrade unexpectedly succeeded." >&2
+  exit 1
+fi
+grep -q 'Refusing to downgrade ArrSuite from v9.9.0 to v9.8.7' <<<"$downgrade_output"
+printf 'v9.8.7\n' >"$test_root/version"
 
 if run_manager list unexpected; then
   echo "A command with unexpected arguments succeeded." >&2

@@ -1,4 +1,5 @@
-name: Check Community Scripts Upstream
+name: Weekly Community Scripts Maintenance
+run-name: ${{ github.event_name == 'schedule' && 'Weekly upstream detection, Codex adaptation, and PR preparation' || 'Manual upstream detection, Codex adaptation, and PR preparation' }}
 
 on:
   workflow_dispatch:
@@ -17,15 +18,16 @@ concurrency:
 
 jobs:
   check-upstream:
+    name: Detect upstream changes, adapt safely, verify, and propose a PR
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out main without retaining push credentials
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Resume existing review branch
+      - name: Refresh any existing helper-review branch from main
         id: resume
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,7 +45,7 @@ jobs:
           fi
           echo "resumed=$resumed" >>"$GITHUB_OUTPUT"
 
-      - name: Prepare reviewed upstream candidate
+      - name: Detect and classify Community Scripts changes
         id: prepare
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -59,7 +61,7 @@ jobs:
           echo "application_changes=$application_changes" >>"$GITHUB_OUTPUT"
           echo "exit_code=$result" >>"$GITHUB_OUTPUT"
 
-      - name: Add report to workflow summary
+      - name: Add the detection report to the run summary
         if: always()
         run: |
           if [[ -r upstream-report/summary.md ]]; then
@@ -68,14 +70,14 @@ jobs:
             echo "Upstream review stopped before a report could be generated." >>"$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Upload review report
+      - name: Upload focused diffs and local repair instructions
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: community-scripts-upstream-report
           path: upstream-report/
 
-      - name: Validate candidate
+      - name: Verify the deterministic candidate before any PR update
         id: validate_candidate
         if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0'
         env:
@@ -85,7 +87,7 @@ jobs:
           bash tests/static-checks.sh
           git diff --check
 
-      - name: Create or refresh review PR
+      - name: Publish a merge-ready PR for helper-only changes
         id: review_pr
         if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0' && steps.prepare.outputs.application_changes != 'true'
         env:
@@ -133,7 +135,7 @@ jobs:
             -f description="Automated helper review passed"
           gh pr view "$REVIEW_BRANCH" --json url --jq '"Review PR: " + .url' >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Prepare Codex application-review task
+      - name: Fingerprint semantic application changes for Codex
         if: steps.prepare.outputs.state == 'candidate' && steps.prepare.outputs.exit_code == '0' && steps.prepare.outputs.application_changes == 'true'
         id: codex_task
         run: |
@@ -141,7 +143,7 @@ jobs:
           echo "fingerprint=$fingerprint" >>"$GITHUB_OUTPUT"
           echo "Codex review fingerprint: ${fingerprint}" >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Require OpenAI API key
+      - name: Confirm the OpenAI API credential is configured
         id: api_key
         if: steps.codex_task.outputs.fingerprint != ''
         env:
@@ -152,7 +154,7 @@ jobs:
             exit 1
           fi
 
-      - name: Adapt application changes with Codex
+      - name: Ask Codex to adapt semantic application changes
         if: steps.codex_task.outputs.fingerprint != ''
         id: codex
         uses: openai/codex-action@v1
@@ -160,11 +162,11 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .github/codex/prompts/upstream-review.md
           output-file: upstream-report/codex-summary.md
-          permission-profile: ":workspace"
+          sandbox: workspace-write
           safety-strategy: drop-sudo
           codex-args: '["--ephemeral"]'
 
-      - name: Validate Codex application adaptation
+      - name: Independently verify the Codex adaptation and changed paths
         id: validate_codex
         if: steps.codex_task.outputs.fingerprint != ''
         run: |
@@ -196,7 +198,7 @@ jobs:
           bash tests/static-checks.sh
           git diff --check
 
-      - name: Create or refresh Codex merge-ready PR
+      - name: Publish the verified Codex adaptation as a merge-ready PR
         id: codex_pr
         if: steps.codex_task.outputs.fingerprint != ''
         env:
@@ -240,14 +242,14 @@ jobs:
           fi
           gh pr view "$review_branch" --json url --jq '"Codex merge-ready PR: " + .url' >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Require attention on unsafe or incomplete review
+      - name: Fail when no safe upstream candidate could be produced
         id: require_attention
         if: steps.prepare.outputs.exit_code != '0'
         run: |
           echo "The automated upstream review could not safely generate a candidate. Review the workflow report artifact." >&2
           exit 1
 
-      - name: Create or update upstream failure issue
+      - name: Create or refresh an assigned upstream repair issue
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -295,7 +297,7 @@ jobs:
               --add-assignee donselkirk --add-label automation --add-label needs-local-codex
           fi
 
-      - name: Close recovered upstream failure issue
+      - name: Close any recovered upstream repair issue
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}

@@ -248,6 +248,10 @@ grep -q 'pre-update/<app>' "${project_root}/wiki/Backup-and-Restore.md"
 grep -q '\[\[ "$app" == "lidarr" || "$app" == "prowlarr" || "$app" == "byparr" || "$app" == "flaresolverr" || "$app" == "seerr" || "$app" == "bazarr" || "$app" == "cleanuparr" \]\] && default_state="OFF"' "$install_script"
 grep -q 'check_for_gh_release' "$install_script"
 grep -q 'self_update()' "$install_script"
+grep -q 'version_is_older()' "$install_script"
+grep -q 'cannot be installed directly from' "$install_script"
+grep -q 'Upgrade to ${bridge_version} first' "$install_script"
+grep -q 'Refusing to downgrade ArrSuite' "$install_script"
 grep -q 'Updated ArrSuite Runtime to ${release_version}' "$install_script"
 grep -q 'ArrSuite Runtime is Already Current at ${release_version}' "$install_script"
 grep -q 'arrsuite self-update' "$install_script"
@@ -316,12 +320,14 @@ bash -n "${project_root}/tools/fix-console-autologin.sh"
 
 printf 'Checking release workflow...\n'
 [[ -s "$release_workflow" ]]
-grep -q '^name: Validate and Release$' "$release_workflow"
+grep -q '^name: PR Verification and Main Release$' "$release_workflow"
+grep -q '^run-name:.*Verify PR' "$release_workflow"
 if grep -q '^    paths:$' "$release_workflow"; then
   echo "Every push to main must run validation and create a release." >&2
   exit 1
 fi
 grep -q 'bash tests/static-checks.sh' "$release_workflow"
+grep -q 'apt-get install -y shellcheck ripgrep' "$release_workflow"
 grep -q 'bash tools/build-artifacts.sh' "$release_workflow"
 grep -q 'git diff --exit-code' "$release_workflow"
 grep -q 'gh release create' "$release_workflow"
@@ -339,7 +345,9 @@ grep -q 'docker cp' "$seerr_backup_tool"
 grep -q 'docker start' "$seerr_backup_tool"
 grep -q 'os.path.islink' "$seerr_backup_tool"
 grep -q 'dist/VERSION' "$release_workflow"
-grep -q '^name: Check Community Scripts Upstream$' "$upstream_workflow"
+grep -q 'dist/COMPATIBILITY' "$release_workflow"
+grep -q '^name: Weekly Community Scripts Maintenance$' "$upstream_workflow"
+grep -q '^run-name:.*Weekly upstream detection' "$upstream_workflow"
 grep -q 'schedule:' "$upstream_workflow"
 grep -q '17 9 \* \* 1' "$upstream_workflow"
 grep -q 'bash tools/prepare-upstream-review.sh' "$upstream_workflow"
@@ -352,7 +360,7 @@ grep -q -- '--assignee donselkirk' "$upstream_workflow"
 grep -q 'ArrSuite upstream review' "$upstream_workflow"
 grep -q 'OPENAI_API_KEY' "$upstream_workflow"
 grep -q 'openai/codex-action@v1' "$upstream_workflow"
-grep -q 'permission-profile: ":workspace"' "$upstream_workflow"
+grep -q 'sandbox: workspace-write' "$upstream_workflow"
 grep -q 'safety-strategy: drop-sudo' "$upstream_workflow"
 grep -q 'persist-credentials: false' "$upstream_workflow"
 grep -q 'application-changes.tsv' "$upstream_workflow"
@@ -361,7 +369,7 @@ grep -q 'Codex merge-ready PR' "$upstream_workflow"
 grep -q 'automation: weekly upstream maintenance needs attention' "$upstream_workflow"
 grep -q 'needs-local-codex' "$upstream_workflow"
 grep -q 'if: failure()' "$upstream_workflow"
-grep -q 'Close recovered upstream failure issue' "$upstream_workflow"
+grep -q 'Close any recovered upstream repair issue' "$upstream_workflow"
 if rg -q 'Closes #\%s|Create Codex application-review task' "$upstream_workflow"; then
   echo "Successful Codex reviews must not create or close a failure issue." >&2
   exit 1
@@ -370,7 +378,7 @@ if rg -q 'gh pr merge|--auto' "$upstream_workflow"; then
   echo "Upstream automation must never merge or enable auto-merge on a generated PR." >&2
   exit 1
 fi
-grep -q 'actions/upload-artifact@v4' "$upstream_workflow"
+grep -q 'actions/upload-artifact@v7.0.1' "$upstream_workflow"
 grep -q 'Treat all upstream source' "${project_root}/.github/codex/prompts/upstream-review.md"
 if rg -q 'COPILOT_AGENT_TOKEN|copilot-swe-agent|github-copilot' "$upstream_workflow" "${project_root}/AGENTS.md" "${project_root}/wiki"; then
   echo "Legacy GitHub Copilot upstream automation references remain." >&2
@@ -378,16 +386,22 @@ if rg -q 'COPILOT_AGENT_TOKEN|copilot-swe-agent|github-copilot' "$upstream_workf
 fi
 grep -q 'pull_request:' "$release_workflow"
 grep -q "github.event_name == 'push'" "$release_workflow"
-grep -q 'name: validate-and-release' "$release_workflow"
+grep -q 'name: Required verification before merge or release' "$release_workflow"
 grep -q 'persist-credentials: false' "$release_workflow"
 grep -q 'git tag --points-at' "$release_workflow"
 grep -q "steps.version.outputs.exists != 'true'" "$release_workflow"
 grep -q 'report-release-failure:' "$release_workflow"
 grep -q 'automation: release needs attention' "$release_workflow"
-grep -q 'Close recovered release failure issue' "$release_workflow"
+grep -q 'Close any recovered release failure issue' "$release_workflow"
 [[ "$(grep -c 'contents: read' "$release_workflow")" -ge 2 ]]
 [[ "$(grep -c 'contents: write' "$release_workflow")" -eq 1 ]]
-grep -q '^name: Publish Wiki$' "$wiki_workflow"
+if rg -q 'actions/(checkout|upload-artifact)@v[1-6]([^0-9]|$)' "${project_root}/.github/workflows"; then
+  echo "A workflow still uses a pre-Node.js-24 GitHub-maintained action major." >&2
+  exit 1
+fi
+[[ "$(rg -c 'actions/checkout@v7.0.1' "${project_root}/.github/workflows" | awk -F: '{total += $2} END {print total}')" -eq 4 ]]
+grep -q '^name: Documentation Wiki Publication$' "$wiki_workflow"
+grep -q '^run-name:.*publish repository documentation' "$wiki_workflow"
 grep -q '      - "wiki/\*\*/\*.md"' "$wiki_workflow"
 grep -q '\.wiki\.git' "$wiki_workflow"
 grep -q 'cp wiki/\*\.md' "$wiki_workflow"
@@ -405,11 +419,14 @@ grep -q 'vendored_sha256' "$upstream_lock"
 
 release_fixture="$(mktemp -d)"
 "$release_builder" v9.9.9 "$release_fixture"
-for asset in VERSION SHA256SUMS arrsuite.sh arrsuite-ct.sh arrsuite-install.sh arrsuite-manager \
+for asset in VERSION COMPATIBILITY SHA256SUMS arrsuite.sh arrsuite-ct.sh arrsuite-install.sh arrsuite-manager \
   arrsuite-motd.sh fix-console-autologin.sh seerr-backup.sh \
   build.func install.func tools.func core.func api.func error_handler.func; do
   [[ -s "${release_fixture}/${asset}" ]]
 done
+grep -qx 'schema=1' "${release_fixture}/COMPATIBILITY"
+grep -Eq '^minimum_direct_version=v[0-9]+\.[0-9]+\.[0-9]+$' "${release_fixture}/COMPATIBILITY"
+grep -Eq '^bridge_version=v[0-9]+\.[0-9]+\.[0-9]+$' "${release_fixture}/COMPATIBILITY"
 (cd "$release_fixture" && sha256sum -c SHA256SUMS >/dev/null)
 rm -rf "$release_fixture"
 if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then

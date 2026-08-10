@@ -19,6 +19,13 @@ under `/opt/arrsuite/lib` so later commands cannot silently mix Community
 Scripts revisions. Live upstream helpers and raw repository URLs are available
 only as explicit development overrides.
 
+Every release also publishes `COMPATIBILITY` under the same checksum manifest.
+Self-update verifies it before deployment, refuses downgrades, and compares the
+installed version with `minimum_direct_version`. Older or unversioned runtimes
+are left untouched and directed through the retained `bridge_version` release
+before retrying latest. This metadata and bridge asset contract must be reviewed
+whenever future runtime changes could break upgrades across multiple releases.
+
 ## Source and generated files
 
 ```text

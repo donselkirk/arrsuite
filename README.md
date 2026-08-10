@@ -63,6 +63,13 @@ deliberate noninteractive use. Restore does not create an automatic backup.
 Stateful applications create a pre-update backup before their program files
 are replaced; Cleanuparr similarly archives `/etc/cleanuparr` before updates.
 
+Self-update checks the installed ArrSuite version against checksummed release
+compatibility metadata before replacing files. If an older installation needs
+an intermediate release, it stops safely and prints the exact pinned bridge
+command followed by the normal `arrsuite self-update` command. Application
+updates still continue when the standard `update` command encounters a blocked
+or unavailable ArrSuite self-update.
+
 ## Documentation
 
 - [User guide](https://github.com/donselkirk/arrsuite/wiki/User-Guide)
