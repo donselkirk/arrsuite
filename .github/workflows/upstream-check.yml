@@ -192,7 +192,7 @@ jobs:
 
           while IFS= read -r changed_path; do
             case "$changed_path" in
-              apps/*.sh|templates/*|src/*|tools/upstream-lock.json|tools/arrsuite-manager|tools/arrsuite-motd.sh|install/arrsuite-install.sh|tests/*|README.md|arrsuite.json|wiki/*|vendor/community-scripts/misc/*|upstream-review/pending.md)
+              apps/*.sh|templates/*|src/*|tools/upstream-lock.json|tools/arrsuite-manager|tools/arrsuite-motd.sh|install/arrsuite-install.sh|tests/*|README.md|json/arrsuite.json|wiki/*|vendor/community-scripts/misc/*|upstream-review/pending.md)
                 ;;
               *)
                 echo "Codex changed disallowed path: $changed_path" >&2
@@ -220,7 +220,7 @@ jobs:
           git add -A -- \
             apps templates src tools/upstream-lock.json tools/arrsuite-manager \
             tools/arrsuite-motd.sh install/arrsuite-install.sh tests README.md \
-            arrsuite.json wiki vendor/community-scripts/misc
+            json/arrsuite.json wiki vendor/community-scripts/misc
           git commit -m "chore: adapt Community Scripts application changes"
           git fetch origin "${review_branch}:refs/remotes/origin/${review_branch}" || true
           git push --force-with-lease origin "HEAD:refs/heads/${review_branch}"
