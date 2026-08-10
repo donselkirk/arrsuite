@@ -24,16 +24,16 @@ invokes the official Codex GitHub Action using a repository-owned prompt. Codex
 adapts the modules without GitHub credentials under the `:workspace` permission
 profile with `sudo` removed. The workflow then independently verifies the expected
 locks, restricts changed paths, regenerates artifacts, runs the full test suite,
-and opens a draft PR to `main`. Pull-request validation remains blocked until
-the pending file is removed, and only `donselkirk` reviews and merges the
-result.
+and opens a merge-ready PR to `main`. Pull-request validation remains blocked
+until the pending file is removed, and only `donselkirk` can manually merge the
+result; the automation never merges or enables auto-merge.
 
 The Codex Action requires a repository Actions secret named `OPENAI_API_KEY`.
 The key is passed through the action's Responses API proxy and is never exposed
 to the later GitHub-authenticated PR step. Keep the action on its default
 `drop-sudo` safety strategy and the `:workspace` permission profile. The normal
 workflow `GITHUB_TOKEN` creates the tracking issue and, only after validation,
-pushes the review branch and opens the draft PR.
+pushes the review branch and opens the merge-ready PR.
 
 ## Manual read-only check
 

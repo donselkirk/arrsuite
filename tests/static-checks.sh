@@ -343,7 +343,6 @@ grep -q 'pull-requests: write' "$upstream_workflow"
 grep -q 'statuses: write' "$upstream_workflow"
 grep -q 'automation/upstream-review' "$upstream_workflow"
 grep -q -- '--assignee donselkirk' "$upstream_workflow"
-grep -q -- '--reviewer donselkirk' "$upstream_workflow"
 grep -q 'ArrSuite upstream review' "$upstream_workflow"
 grep -q 'OPENAI_API_KEY' "$upstream_workflow"
 grep -q 'openai/codex-action@v1' "$upstream_workflow"
@@ -352,7 +351,11 @@ grep -q 'safety-strategy: drop-sudo' "$upstream_workflow"
 grep -q 'persist-credentials: false' "$upstream_workflow"
 grep -q 'application-changes.tsv' "$upstream_workflow"
 grep -q 'Codex changed disallowed path' "$upstream_workflow"
-grep -q -- '--draft' "$upstream_workflow"
+grep -q 'Codex merge-ready PR' "$upstream_workflow"
+if rg -q 'gh pr merge|--auto' "$upstream_workflow"; then
+  echo "Upstream automation must never merge or enable auto-merge on a generated PR." >&2
+  exit 1
+fi
 grep -q 'actions/upload-artifact@v4' "$upstream_workflow"
 grep -q 'Treat all upstream source' "${project_root}/.github/codex/prompts/upstream-review.md"
 if rg -q 'COPILOT_AGENT_TOKEN|copilot-swe-agent|github-copilot' "$upstream_workflow" "${project_root}/AGENTS.md" "${project_root}/wiki"; then

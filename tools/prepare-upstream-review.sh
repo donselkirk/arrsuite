@@ -205,7 +205,7 @@ EOF_AGENT_INTRO
 - Import any mechanically safe helper changes produced by the preparer.
 - Remove `upstream-review/pending.md` only after every listed change is resolved.
 - Run `bash tools/build-artifacts.sh`, `bash tests/static-checks.sh`, and `git diff --check`.
-- Leave the completed, validated changes in the working tree. The workflow opens the draft pull request separately.
+- Leave the completed, validated changes in the working tree. The workflow opens the merge-ready pull request separately; never merge it.
 
 The pull request must summarize the upstream behavior changes, ArrSuite adaptations, tests run, and any Proxmox validation still required.
 EOF_AGENT_TASK

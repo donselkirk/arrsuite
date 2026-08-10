@@ -109,10 +109,11 @@ GitHub Action with the repository's focused prompt and no GitHub credentials.
 Codex must adapt the ArrSuite modules, advance locks only after review, and
 remove `upstream-review/pending.md`. Deterministic post-agent checks enforce
 expected locks, an allowed-path boundary, artifact generation, and the full test
-suite before a separate authenticated step opens a draft PR for `donselkirk`.
+suite before a separate authenticated step opens a merge-ready PR assigned to
+`donselkirk`.
 Never merge that marker file, never auto-merge an upstream review PR, and never
 allow an agent to push directly to `main`. Newly discovered upstream content
-must not reach `main` without human review and passing pull-request validation.
+must not reach `main` without a manual merge action and passing validation.
 
 When adding an application, update all relevant surfaces:
 
