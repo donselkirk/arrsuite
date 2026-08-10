@@ -18,7 +18,12 @@ Compare each upstream change with its corresponding `apps/*.sh` module,
 templates, tests, and locked source. Preserve ArrSuite-specific ports,
 direct-install Debian 13 behavior, configuration and data retention, verified
 pre-update backups, staged deployment, rollback, architecture restrictions,
-and Byparr/FlareSolverr mutual exclusion.
+Byparr/FlareSolverr mutual exclusion, and skipped-version application upgrades.
+Never solve an upstream incompatibility by deleting or resetting existing user
+configuration. If the required adaptation would change ArrSuite's runtime asset
+protocol or self-update compatibility policy, leave the affected item pending
+and report that it requires a separate human-reviewed compatibility PR; this
+focused agent run must not change release configuration.
 
 Update application code and focused regression tests only where the reviewed
 upstream behavior requires it. Advance an application blob in
