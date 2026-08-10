@@ -1996,7 +1996,7 @@ self_update() {
   if version_is_older "$current_version" "$minimum_direct_version"; then
     rm -rf "$temp_dir"
     msg_error "ArrSuite ${release_version} cannot be installed directly from ${current_version}."
-    msg_error "Upgrade through ${bridge_version} first, then run the normal self-update:"
+    msg_error "Upgrade through ${bridge_version} first, then explicitly return to the latest release:"
     printf '\n' >&2
     if version_is_older "$current_version" "$legacy_helper_fix_before"; then
       printf '  COMMUNITY_SCRIPTS_URL="%s" \\\n' "$legacy_helper_url" >&2
@@ -2007,7 +2007,7 @@ self_update() {
       printf '  ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/%s" arrsuite self-update\n' "$bridge_version" >&2
       bridge_runs=$((bridge_runs - 1))
     done
-    printf '  arrsuite self-update\n\n' >&2
+    printf '  ARRSUITE_UPDATE_BASE_URL="%s" arrsuite self-update\n\n' "$DEFAULT_UPDATE_BASE_URL" >&2
     return 1
   fi
 

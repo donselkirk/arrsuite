@@ -441,7 +441,7 @@ grep -q 'cannot be installed directly from v1.0.10' <<<"$blocked_update_output"
 grep -q 'Upgrade through v1.0.20 first' <<<"$blocked_update_output"
 [[ "$(grep -c 'ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/download/v1.0.20" arrsuite self-update' <<<"$blocked_update_output")" == 2 ]]
 grep -q 'COMMUNITY_SCRIPTS_URL="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main"' <<<"$blocked_update_output"
-grep -q '^  arrsuite self-update$' <<<"$blocked_update_output"
+grep -q '^  ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/latest/download" arrsuite self-update$' <<<"$blocked_update_output"
 [[ ! -e "$test_root/runtime/arrsuite" ]]
 
 printf 'v1.0.16\n' >"$test_root/version"

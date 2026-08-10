@@ -44,9 +44,17 @@ Each release includes checksummed upgrade compatibility metadata. Before any
 runtime file is replaced, `arrsuite self-update` verifies that metadata,
 compares the installed and target versions, and refuses downgrades. When a
 direct jump is unsafe, it exits without changing the runtime and prints two
-ready-to-run commands: a version-pinned update to the required bridge release,
-then the normal self-update to the latest release. Follow those commands in the
-order shown. The standard `update` command reports the blocked self-update and
+ready-to-run commands: version-pinned updates to the required bridge release,
+then an update that explicitly restores `releases/latest/download`. Follow
+those commands in the order shown. The explicit final URL is important because
+older managers persist the pinned bridge URL in `/opt/arrsuite/update.url`.
+If v1.0.31 reports that it is current when a newer release exists, run:
+
+```bash
+ARRSUITE_UPDATE_BASE_URL="https://github.com/donselkirk/arrsuite/releases/latest/download" arrsuite self-update
+```
+
+The standard `update` command reports the blocked self-update and
 continues updating installed applications.
 
 Updates for Sonarr, Radarr, Lidarr, Prowlarr, Seerr, and Bazarr first create a

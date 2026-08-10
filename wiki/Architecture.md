@@ -23,7 +23,9 @@ Every release also publishes `COMPATIBILITY` under the same checksum manifest.
 Self-update verifies it before deployment, refuses downgrades, and compares the
 installed version with `minimum_direct_version`. Older or unversioned runtimes
 are left untouched and directed through the retained `bridge_version` release
-before retrying latest. This metadata and bridge asset contract must be reviewed
+before explicitly restoring the latest-release URL. This prevents the older
+manager from leaving `/opt/arrsuite/update.url` pinned to the bridge. This
+metadata and bridge asset contract must be reviewed
 whenever future runtime changes could break upgrades across multiple releases.
 
 ## Source and generated files

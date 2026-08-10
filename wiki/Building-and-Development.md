@@ -78,7 +78,10 @@ Compatibility claims must be supported by tagged updater code and historical
 release instructions. The current historical baseline is v1.0.31, when the
 complete checksummed helper bundle became available. Upgrades from v1.0.30 or
 older use that release twice because the first pass replaces the manager and
-the second installs the full helper bundle. Versions before v1.0.29 must also
+the second installs the full helper bundle. The final command must explicitly
+set `ARRSUITE_UPDATE_BASE_URL` to `releases/latest/download`; the old manager
+persists a pinned bridge URL in `/opt/arrsuite/update.url`, so a plain follow-up
+can incorrectly report that v1.0.31 is current. Versions before v1.0.29 must also
 override `COMMUNITY_SCRIPTS_URL` to the active `ProxmoxVE` repository on the
 first pass because their manager defaults to the retired `ProxmoxVED` path.
 
