@@ -104,8 +104,8 @@ Run `bash tools/check-upstream.sh` to perform a read-only comparison and generat
 focused diffs under `upstream-report/`. The weekly automation uses
 `tools/prepare-upstream-review.sh` to import only mechanically safe helper
 updates into the stable `automation/upstream-review` PR branch. When application
-behavior changes, it creates a fingerprinted issue and runs the official Codex
-GitHub Action with the repository's focused prompt and no GitHub credentials.
+behavior changes, it runs the official Codex GitHub Action with the repository's
+focused prompt and no GitHub credentials.
 Codex must adapt the ArrSuite modules, advance locks only after review, and
 remove `upstream-review/pending.md`. Deterministic post-agent checks enforce
 expected locks, an allowed-path boundary, artifact generation, and the full test
@@ -114,6 +114,9 @@ suite before a separate authenticated step opens a merge-ready PR assigned to
 Never merge that marker file, never auto-merge an upstream review PR, and never
 allow an agent to push directly to `main`. Newly discovered upstream content
 must not reach `main` without a manual merge action and passing validation.
+Successful automation creates no tracking issue. Any upstream or release
+failure must create or refresh one assigned, deduplicated issue containing the
+run URL, stage results, available report details, and local Codex repair steps.
 
 When adding an application, update all relevant surfaces:
 
@@ -172,14 +175,15 @@ systemd startup, release downloads, or web interfaces.
 
 ## Commit and handoff workflow
 
-- Commit completed changes to `main` and push to
-  `https://github.com/donselkirk/arrsuite.git` when the user asks for a change.
+- Commit completed changes to a focused branch, push that branch, and open or
+  update a pull request. Never push directly to protected `main`.
 - Use focused commit messages such as `feat: add Prowlarr module` or
   `fix: clear getty credentials in unprivileged LXC`.
-- Every push to `main` must run GitHub Actions validation and create the next
-  patch release with an Important Changes summary, full comparison link, and
-  stable runtime assets.
-- After every pushed change, verify the generated release and provide a
+- Every pull request must pass read-only GitHub Actions validation and be
+  manually squash-merged by `donselkirk`. The resulting push to `main` creates
+  or verifies exactly one patch release with an Important Changes summary,
+  full comparison link, and stable runtime assets.
+- After every merged change, verify the generated release and provide a
   cache-bypassing, version-pinned installation command using that release:
 
 ```bash
