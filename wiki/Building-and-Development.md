@@ -74,6 +74,14 @@ safe for the legacy download/install protocol and perform any required migration
 themselves. Do not treat a raised minimum alone as protection for those older
 installations.
 
+Compatibility claims must be supported by tagged updater code and historical
+release instructions. The current historical baseline is v1.0.31, when the
+complete checksummed helper bundle became available. Upgrades from v1.0.30 or
+older use that release twice because the first pass replaces the manager and
+the second installs the full helper bundle. Versions before v1.0.29 must also
+override `COMMUNITY_SCRIPTS_URL` to the active `ProxmoxVE` repository on the
+first pass because their manager defaults to the retired `ProxmoxVED` path.
+
 The Markdown files under `wiki/` are the canonical Wiki sources. Changes to
 them on `main` are published automatically by `.github/workflows/wiki.yml`;
 avoid editing the published GitHub Wiki separately.

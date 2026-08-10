@@ -250,7 +250,9 @@ grep -q 'check_for_gh_release' "$install_script"
 grep -q 'self_update()' "$install_script"
 grep -q 'version_is_older()' "$install_script"
 grep -q 'cannot be installed directly from' "$install_script"
-grep -q 'Upgrade to ${bridge_version} first' "$install_script"
+grep -q 'Upgrade through ${bridge_version} first' "$install_script"
+grep -q 'The evidence-backed direct-upgrade baseline is v1.0.31' "${project_root}/AGENTS.md"
+grep -q 'skipped-version application upgrades' "${project_root}/.github/codex/prompts/upstream-review.md"
 grep -q 'Refusing to downgrade ArrSuite' "$install_script"
 grep -q 'Updated ArrSuite Runtime to ${release_version}' "$install_script"
 grep -q 'ArrSuite Runtime is Already Current at ${release_version}' "$install_script"
@@ -424,9 +426,12 @@ for asset in VERSION COMPATIBILITY SHA256SUMS arrsuite.sh arrsuite-ct.sh arrsuit
   build.func install.func tools.func core.func api.func error_handler.func; do
   [[ -s "${release_fixture}/${asset}" ]]
 done
-grep -qx 'schema=1' "${release_fixture}/COMPATIBILITY"
+grep -qx 'schema=2' "${release_fixture}/COMPATIBILITY"
 grep -Eq '^minimum_direct_version=v[0-9]+\.[0-9]+\.[0-9]+$' "${release_fixture}/COMPATIBILITY"
 grep -Eq '^bridge_version=v[0-9]+\.[0-9]+\.[0-9]+$' "${release_fixture}/COMPATIBILITY"
+grep -Eq '^bridge_runs=[1-9][0-9]*$' "${release_fixture}/COMPATIBILITY"
+grep -Eq '^legacy_helper_fix_before=v[0-9]+\.[0-9]+\.[0-9]+$' "${release_fixture}/COMPATIBILITY"
+grep -Eq '^legacy_helper_url=https://[^[:space:]]+$' "${release_fixture}/COMPATIBILITY"
 (cd "$release_fixture" && sha256sum -c SHA256SUMS >/dev/null)
 rm -rf "$release_fixture"
 if grep -Eq '(^|[^[:alnum:]])v[0-9]+\.[0-9]+' "${project_root}/README.md"; then

@@ -57,8 +57,19 @@ optional and unchecked. LXC nesting must default to disabled.
 - Every release must publish checksummed `COMPATIBILITY` metadata. Self-update
   must compare the installed version before changing files, refuse downgrades,
   and stop with exact pinned bridge-release and follow-up commands when the
-  installed version is too old for a direct upgrade. Preserve the legacy asset
-  protocol so older managers can continue reaching a compatible bridge.
+  installed version is too old for a direct upgrade. Schema 2 records
+  `bridge_runs`, `legacy_helper_fix_before`, and `legacy_helper_url`; keep those
+  fields, the release builder, generated notes, manager parser, and tests in
+  sync. Preserve the legacy asset protocol so older managers can continue
+  reaching a compatible bridge.
+- The evidence-backed direct-upgrade baseline is v1.0.31, when the complete
+  checksummed helper bundle was first published. v1.0.29 and v1.0.30 require
+  two pinned v1.0.31 self-update passes before updating normally. Earlier or
+  unversioned installs require the same two-pass bridge, with
+  `COMMUNITY_SCRIPTS_URL=https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main`
+  on the first pass because those managers default to the retired
+  `community-scripts/ProxmoxVED` repository. Do not claim compatibility earlier
+  than v1.0.31 unless tagged updater code and release assets prove a safer path.
 - Treat self-update compatibility as a required design review for every future
   change. If a change cannot safely support direct upgrades from the current
   minimum, first publish and retain a bridge release, then update
@@ -121,8 +132,8 @@ updates into the stable `automation/upstream-review` PR branch. When application
 behavior changes, it runs the official Codex GitHub Action with the repository's
 focused prompt and no GitHub credentials.
 Codex must adapt the ArrSuite modules under the `workspace-write` sandbox,
-advance locks only after review, and
-remove `upstream-review/pending.md`. Deterministic post-agent checks enforce
+advance locks only after review, and remove `upstream-review/pending.md`.
+Deterministic post-agent checks enforce
 expected locks, an allowed-path boundary, artifact generation, and the full test
 suite before a separate authenticated step opens a merge-ready PR assigned to
 `donselkirk`.

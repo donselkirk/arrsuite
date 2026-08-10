@@ -1,3 +1,6 @@
-schema=1
-minimum_direct_version=v1.0.0
-bridge_version=v1.0.37
+schema=2
+minimum_direct_version=v1.0.31
+bridge_version=v1.0.31
+bridge_runs=2
+legacy_helper_fix_before=v1.0.29
+legacy_helper_url=https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main

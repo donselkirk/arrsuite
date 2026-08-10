@@ -13,9 +13,17 @@ compatibility_file="${project_root}/release/COMPATIBILITY"
 compatibility_schema="$(sed -n 's/^schema=//p' "$compatibility_file")"
 minimum_direct_version="$(sed -n 's/^minimum_direct_version=//p' "$compatibility_file")"
 bridge_version="$(sed -n 's/^bridge_version=//p' "$compatibility_file")"
-[[ "$compatibility_schema" == "1" \
+bridge_runs="$(sed -n 's/^bridge_runs=//p' "$compatibility_file")"
+legacy_helper_fix_before="$(sed -n 's/^legacy_helper_fix_before=//p' "$compatibility_file")"
+legacy_helper_url="$(sed -n 's/^legacy_helper_url=//p' "$compatibility_file")"
+[[ "$compatibility_schema" == "2" \
   && "$minimum_direct_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ \
   && "$bridge_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ \
+  && "$bridge_runs" =~ ^[1-9][0-9]*$ \
+  && "$legacy_helper_fix_before" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ \
+  && "$legacy_helper_url" =~ ^https:// \
+  && "$(printf '%s\n%s\n' "$legacy_helper_fix_before" "$minimum_direct_version" | sort -V | sed -n '1p')" == "$legacy_helper_fix_before" \
+  && "$legacy_helper_fix_before" != "$minimum_direct_version" \
   && "$(printf '%s\n%s\n' "$minimum_direct_version" "$bridge_version" | sort -V | sed -n '1p')" == "$minimum_direct_version" \
   && "$bridge_version" != "$release_version" \
   && "$(printf '%s\n%s\n' "$bridge_version" "$release_version" | sort -V | sed -n '1p')" == "$bridge_version" ]] || {
