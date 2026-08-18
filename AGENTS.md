@@ -217,6 +217,9 @@ systemd startup, release downloads, or web interfaces.
   publish a release, maintain upstream sources, report a failure, or publish
   documentation. GitHub-maintained JavaScript actions must remain on a
   supported Node.js runtime; static checks reject pre-Node.js-24 action majors.
+  Every workflow that runs `tests/static-checks.sh` must explicitly install
+  both ShellCheck and ripgrep; do not rely on GitHub-hosted runner images to
+  retain incidental preinstalled tools across their weekly image updates.
 - After every merged change, verify the generated release and provide a
   cache-bypassing, version-pinned installation command using that release:
 

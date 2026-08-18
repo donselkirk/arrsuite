@@ -50,6 +50,10 @@ upstream-review PRs with a pending
 application marker intentionally fail until the listed semantic adaptations
 are completed.
 
+GitHub-hosted runner images change independently of ArrSuite. Workflows that
+run the static suite install ShellCheck and ripgrep explicitly so validation
+does not depend on incidental tools in a particular weekly runner image.
+
 Post-merge release failures create or refresh one assigned GitHub issue with
 the failing commit, run URL, stage results, and local Codex repair guidance.
 

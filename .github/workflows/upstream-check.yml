@@ -27,6 +27,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Install ShellCheck and ripgrep verification dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck ripgrep
+
       - name: Refresh any existing helper-review branch from main
         id: resume
         env:
