@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ai_spec="${project_root}/AI_SPEC.md"
 ct_script="${project_root}/ct/arrsuite.sh"
 bootstrap_script="${project_root}/arrsuite.sh"
 install_script="${project_root}/install/arrsuite-install.sh"
@@ -154,6 +155,17 @@ if [[ -e "${project_root}/upstream-review/pending.md" \
 fi
 
 printf 'Checking required project files...\n'
+[[ -s "$ai_spec" ]]
+grep -q '^# ArrSuite AI Specification$' "$ai_spec"
+grep -q 'canonical product and reconstruction contract' "$ai_spec"
+grep -q 'v1.0.31' "$ai_spec"
+grep -q 'bridge_runs=2' "$ai_spec"
+grep -q 'Sonarr | 8989' "$ai_spec"
+grep -q 'Cleanuparr | 11011' "$ai_spec"
+grep -q 'Protected `main` accepts only manually approved squash merges' "$ai_spec"
+grep -q 'AI_SPEC.md' "${project_root}/AGENTS.md"
+grep -q 'AI_SPEC.md' "${project_root}/README.md"
+grep -q 'AI_SPEC.md' "${project_root}/.github/codex/prompts/upstream-review.md"
 for required in "$bootstrap_script" "$ct_script" "$install_script" "$json_file" "$standalone_manager" "$seerr_backup_tool"; do
   [[ -s "$required" ]] || {
     echo "Missing required file: $required" >&2

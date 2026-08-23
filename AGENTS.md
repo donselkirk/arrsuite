@@ -1,5 +1,10 @@
 # ArrSuite Development Instructions
 
+Read `AI_SPEC.md` before architectural, rebuild, or AI-agent work. It is the
+canonical self-contained product and reconstruction contract; update it in the
+same PR whenever supported apps, interfaces, safety guarantees, compatibility,
+release behavior, or automation changes.
+
 ## Project purpose
 
 ArrSuite creates one unprivileged Debian 13 Proxmox LXC that runs multiple
