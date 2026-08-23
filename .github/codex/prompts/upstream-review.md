@@ -1,6 +1,6 @@
 # ArrSuite upstream application adaptation
 
-Read and obey the repository `AGENTS.md`. The deterministic weekly checker has
+Read and obey the repository `AGENTS.md` and `AI_SPEC.md`. The deterministic weekly checker has
 already downloaded the current Community Scripts sources and generated:
 
 - `upstream-report/agent-body.md`, which defines the exact task and acceptance criteria;

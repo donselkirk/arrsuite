@@ -1,5 +1,9 @@
 # ArrSuite Community Script
 
+Maintainers and AI agents should begin with [AI_SPEC.md](AI_SPEC.md), the
+canonical product and reconstruction contract covering runtime invariants,
+application behavior, compatibility, and release automation.
+
 ArrSuite creates one Proxmox LXC that runs multiple Arr applications directly,
 without Docker. Applications can be selected during installation and managed
 later through one `arrsuite` command.
