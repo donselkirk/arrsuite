@@ -1,6 +1,8 @@
 # Building and Development
 
-Follow the repository's `AGENTS.md` instructions for all changes.
+Follow `AGENTS.md` for development guardrails, `AI_SPEC.md` for canonical
+runtime/compatibility behavior, and `GITHUB_AI_INSTRUCTIONS.md` for
+GitHub Copilot coding/review agent expectations.
 
 ## Generate artifacts
 

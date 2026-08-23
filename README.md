@@ -2,7 +2,9 @@
 
 Maintainers and AI agents should begin with [AI_SPEC.md](AI_SPEC.md), the
 canonical product and reconstruction contract covering runtime invariants,
-application behavior, compatibility, and release automation.
+application behavior, compatibility, and release automation. Contributor and
+Copilot workflow guidance lives in [AGENTS.md](AGENTS.md) and
+[GITHUB_AI_INSTRUCTIONS.md](GITHUB_AI_INSTRUCTIONS.md).
 
 ArrSuite creates one Proxmox LXC that runs multiple Arr applications directly,
 without Docker. Applications can be selected during installation and managed
@@ -91,14 +93,15 @@ or unavailable ArrSuite self-update.
   state.
 - Blank-password console auto-login supports both the Proxmox web console and
   `pct console`.
-- Local static checks do not replace testing on a disposable Proxmox node.
-- Each release includes a checksum-verified, reviewed Community Scripts helper
-  bundle so bootstrap and self-update do not silently mix upstream revisions.
 - ArrSuite is an independent, AI-assisted community project and is not an
   official Community Scripts release.
+- Development, compatibility, and release-process details are documented in
+  [AI_SPEC.md](AI_SPEC.md), [AGENTS.md](AGENTS.md), and the Wiki development
+  guides.
 
 ## Contributing
 
 Issues, testing feedback, and contributions are welcome. Development changes
-should follow [AGENTS.md](AGENTS.md) and the
+should follow [AGENTS.md](AGENTS.md),
+[GITHUB_AI_INSTRUCTIONS.md](GITHUB_AI_INSTRUCTIONS.md), and the
 [building guide](https://github.com/donselkirk/arrsuite/wiki/Building-and-Development).

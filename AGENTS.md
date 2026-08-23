@@ -5,6 +5,10 @@ canonical self-contained product and reconstruction contract; update it in the
 same PR whenever supported apps, interfaces, safety guarantees, compatibility,
 release behavior, or automation changes.
 
+GitHub Copilot coding/review agents must also follow
+`GITHUB_AI_INSTRUCTIONS.md` for repository-specific PR execution boundaries and
+GitHub workflow expectations.
+
 ## Project purpose
 
 ArrSuite creates one unprivileged Debian 13 Proxmox LXC that runs multiple
