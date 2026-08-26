@@ -5,10 +5,10 @@
     "build.func": {
       "repository": "community-scripts/ProxmoxVE",
       "path": "misc/build.func",
-      "blob": "96b1a88c6f923dd9e869f94cf9d7896502423b88",
-      "upstream_sha256": "9e8aedfd1ad5770e296c90d0c2a7e41dbfcd3087ec095f88ee9a8b597c292c29",
+      "blob": "8aeed099c4be0326d53b5b1ea903472a920245cb",
+      "upstream_sha256": "2d87f0eb4670feb81f57ff9afee725b23221ed6376f2475e553ecd7c78235e6c",
       "vendored_path": "vendor/community-scripts/misc/build.func",
-      "vendored_sha256": "227e1a279eb441c1d107e8b57b8e267fbfdfe21fb692f483923f820abc3ee5fe"
+      "vendored_sha256": "c132da270383633291afac31a88a8ff92d3319ad7fc6af9f47c324666f56dd54"
     },
     "install.func": {
       "repository": "community-scripts/ProxmoxVE",
