@@ -13,26 +13,26 @@
     "install.func": {
       "repository": "community-scripts/ProxmoxVE",
       "path": "misc/install.func",
-      "blob": "07cd2b30f8576220420f7e1495dda3925b30ec80",
-      "upstream_sha256": "b6c0e7ae09c0610eb5f9be78fa47b9194b232bea3175694f01c766998b22ed10",
+      "blob": "f49499699d79a51a5fd6d8ac5334468812e479ef",
+      "upstream_sha256": "8acd1d1dc507a1b903215561d39daebdf8abc9c9e0ce5d72d754f7bc34943c39",
       "vendored_path": "vendor/community-scripts/misc/install.func",
-      "vendored_sha256": "a74c6999be52747c76de31bcb7b8f4672fb75a33630c04948dacd786ad72c08f"
+      "vendored_sha256": "dc5800eb0652c5782e2481b6ed9bfed86e00527e824492bda9c4d9c6a6e33c79"
     },
     "tools.func": {
       "repository": "community-scripts/ProxmoxVE",
       "path": "misc/tools.func",
-      "blob": "bfe6cba9664c96a3e18e7e514d7f48d37d4c2117",
-      "upstream_sha256": "9d176fc13fc728792650b22bfdfb015657226bffc5fb7ce32a6322489a9df37e",
+      "blob": "eec09770f449540666d30d58714745674a070120",
+      "upstream_sha256": "6a3924646709a45d9d7e3ca12744ca3c8c69779930131c5394da2c36e63bcb6e",
       "vendored_path": "vendor/community-scripts/misc/tools.func",
-      "vendored_sha256": "9d176fc13fc728792650b22bfdfb015657226bffc5fb7ce32a6322489a9df37e"
+      "vendored_sha256": "6a3924646709a45d9d7e3ca12744ca3c8c69779930131c5394da2c36e63bcb6e"
     },
     "core.func": {
       "repository": "community-scripts/ProxmoxVE",
       "path": "misc/core.func",
-      "blob": "a7c48562ee5e9cf5b147c4140aed11a60c4fff5b",
-      "upstream_sha256": "412a1a646752595a76b176268331789cb481460d1d7afcb95a8b9803e469f516",
+      "blob": "4221d562fd20193eebdfdf69ebba8203f915dcb1",
+      "upstream_sha256": "abcbdb71c377d29512053830916ff9a1cf42baac458b30fdbb90a0e86b4534ad",
       "vendored_path": "vendor/community-scripts/misc/core.func",
-      "vendored_sha256": "412a1a646752595a76b176268331789cb481460d1d7afcb95a8b9803e469f516"
+      "vendored_sha256": "abcbdb71c377d29512053830916ff9a1cf42baac458b30fdbb90a0e86b4534ad"
     },
     "api.func": {
       "repository": "community-scripts/ProxmoxVE",
