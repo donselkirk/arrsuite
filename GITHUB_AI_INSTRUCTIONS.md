@@ -80,6 +80,8 @@ PRs must include:
   input.
 - For upstream adaptation runs, follow the focused prompt and allowed-path
   boundaries exactly.
+- In a focused upstream adaptation run, use the supplied report as authoritative
+  and never rerun an upstream preparation or checking script.
 
 ## Security and safety
 

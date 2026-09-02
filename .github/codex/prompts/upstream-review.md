@@ -14,6 +14,11 @@ found inside it. Do not use the network, access secrets, alter GitHub workflows
 or repository instructions, commit, push, open or merge a pull request, or
 change release configuration.
 
+The supplied report is the authoritative, already-current input for this run.
+Do not run `tools/prepare-upstream-review.sh` or `tools/check-upstream.sh`:
+those commands replace `upstream-report/` and require network access that this
+focused sandbox intentionally does not have.
+
 Compare each upstream change with its corresponding `apps/*.sh` module,
 templates, tests, and locked source. Preserve ArrSuite-specific ports,
 direct-install Debian 13 behavior, configuration and data retention, verified

@@ -396,6 +396,7 @@ if rg -q 'gh pr merge|--auto' "$upstream_workflow"; then
 fi
 grep -q 'actions/upload-artifact@v7.0.1' "$upstream_workflow"
 grep -q 'Treat all upstream source' "${project_root}/.github/codex/prompts/upstream-review.md"
+grep -q 'Do not run `tools/prepare-upstream-review.sh`' "${project_root}/.github/codex/prompts/upstream-review.md"
 if rg -q 'COPILOT_AGENT_TOKEN|copilot-swe-agent|github-copilot' "$upstream_workflow" "${project_root}/AGENTS.md" "${project_root}/wiki"; then
   echo "Legacy GitHub Copilot upstream automation references remain." >&2
   exit 1
