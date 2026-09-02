@@ -202,7 +202,10 @@ helper changes, locks exact blobs, and creates a merge-ready PR. Semantic app
 changes go to the official Codex GitHub Action using
 `.github/codex/prompts/upstream-review.md`; it must preserve ports, data,
 backups, staged rollback, architecture, mutual exclusion, and skipped-version
-behavior. No agent may push `main`, merge, alter release configuration during
+behavior. The detector's focused report is the authoritative input to the
+network-isolated Codex step; the agent must not rerun either upstream checker,
+because doing so would replace those inputs and require unavailable network
+access. No agent may push `main`, merge, alter release configuration during
 focused adaptation, or bypass pending-marker/allowed-path checks.
 
 The workflow explicitly installs ShellCheck and ripgrep because hosted images

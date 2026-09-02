@@ -44,6 +44,12 @@ grep -qx 'tool helper new' "$review_root/vendor/community-scripts/misc/tools.fun
 grep -q 'Do not merge this PR' "$review_root/upstream-review/pending.md"
 grep -q 'sonarr install' "$review_root/upstream-review/pending.md"
 grep -q 'Codex GitHub Action' "$review_root/upstream-report/agent-body.md"
+grep -q 'authoritative inputs for this run' "$review_root/upstream-report/agent-body.md"
+# shellcheck disable=SC2016 # Markdown backticks are literal.
+if grep -q 'Run `bash tools/prepare-upstream-review.sh`' "$review_root/upstream-report/agent-body.md"; then
+  echo "Generated Codex task would destructively regenerate its supplied report." >&2
+  exit 1
+fi
 expected_application_change="$(printf 'sonarr\tinstall\tcommunity-scripts/ProxmoxVE\tinstall/sonarr-install.sh\t%s\t%s' "$old_app_blob" "$new_app_blob")"
 grep -Fqx "$expected_application_change" \
   "$review_root/upstream-report/application-changes.tsv"

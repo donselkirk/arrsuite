@@ -198,7 +198,11 @@ EOF_AGENT_INTRO
 
 ## Required work
 
-- Run `bash tools/prepare-upstream-review.sh` to reproduce the current report and focused diffs.
+- Use the already generated `upstream-report/application-changes.tsv` and
+  `upstream-report/*.diff` files as the authoritative inputs for this run.
+- Do not rerun `tools/prepare-upstream-review.sh` or `tools/check-upstream.sh`;
+  they replace the supplied report and require network access that the focused
+  Codex sandbox intentionally does not have.
 - Review each changed upstream installer/CT script against the corresponding `apps/*.sh` module and templates.
 - Adapt ArrSuite only where upstream behavior requires it; preserve ArrSuite-specific ports, safety, backups, and rollback behavior.
 - Advance every resolved application blob in `tools/upstream-lock.json`.
