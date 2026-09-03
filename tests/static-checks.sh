@@ -209,6 +209,10 @@ grep -q 'SHA256SUMS' "$install_script"
 grep -q 'helper bundle failed checksum validation' "$install_script"
 grep -q 'staged_prebuilt_update()' "$install_script"
 grep -q 'arrsuite restart \[app ...\]' "$install_script"
+if grep -q 'read .*2>/dev/null' "$install_script"; then
+  echo "Interactive confirmation prompts must not be redirected to /dev/null." >&2
+  exit 1
+fi
 grep -q 'fetch_and_deploy_gh_release' "$install_script"
 grep -q 'community-tools.sh' "$install_script"
 grep -q 'file://${BASE_DIR}/lib' "$install_script"

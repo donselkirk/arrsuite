@@ -117,8 +117,9 @@ targets fail concisely, show usage or an install hint, and do not emit Bash
 stack diagnostics. Updates continue through remaining apps after a failure and
 return failure if any operation failed. Removal preserves data unless
 `--purge`; reset purges and reinstalls. Removal/reset require confirmation
-unless `--yes` is supplied. `update` self-updates first, but a self-update
-network or compatibility failure must not prevent application updates.
+unless `--yes` is supplied. Interactive confirmation prompts must be visible on
+the controlling terminal. `update` self-updates first, but a self-update network
+or compatibility failure must not prevent application updates.
 
 The banner appears once, reads the registry dynamically, and shows every
 installed app's URL, port, and current systemd state.
