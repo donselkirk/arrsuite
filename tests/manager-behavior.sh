@@ -295,6 +295,17 @@ if grep -Fxq bazarr "$test_root/installed.apps"; then
 fi
 grep -q '^disable --now bazarr$' "$test_root/systemctl.log"
 
+printf '%s\n' flaresolverr >"$test_root/installed.apps"
+confirmation_output="$(
+  printf 'n\n' | (
+    export project_root manager test_root
+    export -f run_manager
+    script -qefc "bash -c 'run_manager remove flaresolverr'" /dev/null
+  )
+)"
+grep -q 'Remove FlareSolverr? Application data will be preserved. \[y/N\]' <<<"$confirmation_output"
+grep -Fxq flaresolverr "$test_root/installed.apps"
+
 printf '%s\n' cleanuparr >"$test_root/installed.apps"
 mkdir -p "$test_root/opt/cleanuparr"
 printf 'program fixture\n' >"$test_root/opt/cleanuparr/Cleanuparr"

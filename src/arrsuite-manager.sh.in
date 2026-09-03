@@ -906,7 +906,8 @@ add_apps() {
 confirm_destructive_action() {
   local prompt="$1" response=""
   if command -v tty >/dev/null 2>&1 && tty -s; then
-    if ! read -r -p "${prompt} [y/N] " response </dev/tty 2>/dev/null; then
+    printf '%s' "${prompt} [y/N] " >/dev/tty
+    if ! read -r response </dev/tty; then
       msg_error "Confirmation requires an interactive terminal; use --yes to continue"
       return 1
     fi
