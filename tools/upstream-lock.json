@@ -29,10 +29,10 @@
     "core.func": {
       "repository": "community-scripts/ProxmoxVE",
       "path": "misc/core.func",
-      "blob": "4221d562fd20193eebdfdf69ebba8203f915dcb1",
-      "upstream_sha256": "abcbdb71c377d29512053830916ff9a1cf42baac458b30fdbb90a0e86b4534ad",
+      "blob": "4589c3d4dd59ec7c0923024c535d001de1f307d3",
+      "upstream_sha256": "0910506f56872f6b2d9fc10810a939ae2c159bc51bf0ad45c9cee4fe66c13872",
       "vendored_path": "vendor/community-scripts/misc/core.func",
-      "vendored_sha256": "abcbdb71c377d29512053830916ff9a1cf42baac458b30fdbb90a0e86b4534ad"
+      "vendored_sha256": "0910506f56872f6b2d9fc10810a939ae2c159bc51bf0ad45c9cee4fe66c13872"
     },
     "api.func": {
       "repository": "community-scripts/ProxmoxVE",
