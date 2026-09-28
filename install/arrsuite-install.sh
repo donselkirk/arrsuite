@@ -1209,8 +1209,8 @@ install_byparr() {
   fi
 
   install_byparr_dependencies || return
-  setup_uv || return
   fetch_and_deploy_gh_release "Byparr" "ThePhaseless/Byparr" "tarball" "latest" || return
+  UV_PROJECT_DIR="/opt/Byparr" setup_uv || return
 
   msg_info "Configuring Byparr"
   cd /opt/Byparr
@@ -1231,10 +1231,11 @@ update_byparr() {
     if ! dpkg -l | grep -q ffmpeg; then
       install_byparr_dependencies || return
     fi
-    setup_uv || return
     rm -rf "$stage_dir" "$stage_home"
     install -d -m 0700 "$stage_home"
     HOME="$stage_home" fetch_and_deploy_gh_release Byparr ThePhaseless/Byparr tarball latest "$stage_dir" \
+      || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    UV_PROJECT_DIR="$stage_dir" setup_uv \
       || { rm -rf "$stage_dir" "$stage_home"; return 1; }
     cd "$stage_dir"
     $STD uv sync --link-mode copy || return
@@ -1293,7 +1294,7 @@ install_flaresolverr() {
     "https://dl.google.com/linux/linux_signing_key.pub" \
     "https://dl.google.com/linux/chrome/deb/" \
     "stable" || return
-  $STD apt update || return
+  apt_update_safe || return
   $STD apt install -y google-chrome-stable || return
   rm -f /etc/apt/sources.list.d/google-chrome.list
   msg_ok "Installed Chrome"

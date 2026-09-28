@@ -104,19 +104,19 @@
       "install": {
         "repository": "community-scripts/ProxmoxVE",
         "path": "install/byparr-install.sh",
-        "blob": "a45691815c68b5715fe91a9ad284eb4d20fae125"
+        "blob": "4822e8edb35e69c788473e43ac1bc5b0ac5525be"
       },
       "update": {
         "repository": "community-scripts/ProxmoxVE",
         "path": "ct/byparr.sh",
-        "blob": "a2db22a6e31f0705ff3b72bf8b095779e0ec3936"
+        "blob": "f8ff609e0e7afe19d2c2abbe4f2779999df2f284"
       }
     },
     "flaresolverr": {
       "install": {
         "repository": "community-scripts/ProxmoxVE",
         "path": "install/flaresolverr-install.sh",
-        "blob": "55642752643eddd1a29e3eb6ab60f50963394039"
+        "blob": "36edc1ab4ea0eb35f67a214b10a78bb03bae121b"
       },
       "update": {
         "repository": "community-scripts/ProxmoxVE",
