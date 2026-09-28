@@ -20,7 +20,7 @@ install_flaresolverr() {
     "https://dl.google.com/linux/linux_signing_key.pub" \
     "https://dl.google.com/linux/chrome/deb/" \
     "stable" || return
-  $STD apt update || return
+  apt_update_safe || return
   $STD apt install -y google-chrome-stable || return
   rm -f /etc/apt/sources.list.d/google-chrome.list
   msg_ok "Installed Chrome"

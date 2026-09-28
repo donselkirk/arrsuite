@@ -523,4 +523,106 @@ if run_manager list unexpected; then
   exit 1
 fi
 
+# Exercise upstream dependency setup against staged releases without touching the host.
+# The dynamically sourced modules invoke these fixture functions and read STD.
+# shellcheck disable=SC2317,SC2034
+(
+  fixture="$test_root/upstream-apps"
+  mkdir -p "$fixture/opt" "$fixture/etc" "$fixture/home"
+  export HOME="$fixture/home"
+  STD=""
+  for app in byparr flaresolverr; do
+    sed -e "s|/opt/|$fixture/opt/|g" -e "s|/etc/|$fixture/etc/|g" \
+      "$project_root/apps/$app.sh" >"$fixture/$app.sh"
+    source "$fixture/$app.sh"
+  done
+  msg_info() { :; }
+  msg_ok() { :; }
+  dpkg() { if [[ "$1" == --print-architecture ]]; then echo amd64; else echo ffmpeg; fi; }
+  install_byparr_dependencies() { :; }
+  write_byparr_service() { :; }
+  write_flaresolverr_service() { :; }
+  register_app() { echo "$1" >>"$fixture/registry"; }
+  check_for_gh_release() { return 0; }
+  fetch_and_deploy_gh_release() {
+    local destination="${5:-$fixture/opt/Byparr}"
+    mkdir -p "$destination"
+    printf 'new-project\n' >"$destination/pyproject.toml"
+  }
+  setup_uv() {
+    [[ -f "$UV_PROJECT_DIR/pyproject.toml" ]] || return 1
+    [[ "$(cat "$UV_PROJECT_DIR/pyproject.toml")" == new-project ]] || return 1
+    [[ "$UV_PROJECT_DIR" == "$expected_project" ]] || return 1
+    [[ ! -e "$fixture/stopped" ]] || return 1
+    [[ "$setup_failure" == no ]]
+  }
+  uv() { [[ "$PWD" == "$expected_project" ]]; }
+  systemctl() {
+    case "$1" in
+      stop) touch "$fixture/stopped" ;;
+      start|is-active)
+        if [[ "$startup_failure" == yes && ! -f "$fixture/opt/Byparr/user-config" ]]; then
+          return 1
+        fi
+        ;;
+    esac
+  }
+  setup_failure=no startup_failure=no
+  expected_project="$fixture/opt/Byparr"
+  install_byparr
+  grep -qx byparr "$fixture/registry"
+  rm "$fixture/registry"
+  setup_failure=yes
+  if install_byparr; then
+    echo 'Byparr installation ignored uv setup failure.' >&2
+    exit 1
+  fi
+  [[ ! -e "$fixture/registry" ]]
+
+  # Simulate an older installation, including user data, with no version-specific hop.
+  printf 'old-project\n' >"$fixture/opt/Byparr/pyproject.toml"
+  printf 'retained\n' >"$fixture/opt/Byparr/user-config"
+  expected_project="$fixture/opt/Byparr.arrsuite-new"
+  if update_byparr; then
+    echo 'Byparr update ignored staged uv setup failure.' >&2
+    exit 1
+  fi
+  [[ ! -e "$fixture/stopped" && ! -e "$expected_project" ]]
+  grep -qx retained "$fixture/opt/Byparr/user-config"
+  grep -qx old-project "$fixture/opt/Byparr/pyproject.toml"
+
+  setup_failure=no startup_failure=yes
+  if update_byparr; then
+    echo 'Byparr update ignored startup failure.' >&2
+    exit 1
+  fi
+  grep -qx retained "$fixture/opt/Byparr/user-config"
+  grep -qx old-project "$fixture/opt/Byparr/pyproject.toml"
+  rm "$fixture/stopped"
+  startup_failure=no
+  update_byparr
+  grep -qx new-project "$fixture/opt/Byparr/pyproject.toml"
+  [[ ! -e "$fixture/opt/Byparr.arrsuite-previous" ]]
+
+  apt-get() { [[ "$*" == 'install -y apt-transport-https xvfb' ]]; }
+  setup_deb822_repo() { touch "$fixture/chrome-repo"; }
+  apt_update_safe() {
+    [[ -f "$fixture/chrome-repo" ]] || return 1
+    [[ "$refresh_failure" == no ]] || return 1
+    touch "$fixture/refreshed"
+  }
+  apt() {
+    [[ "$*" == 'install -y google-chrome-stable' && -f "$fixture/refreshed" ]]
+  }
+  refresh_failure=yes
+  if install_flaresolverr; then
+    echo 'FlareSolverr ignored repository refresh failure.' >&2
+    exit 1
+  fi
+  [[ ! -e "$fixture/registry" ]]
+  refresh_failure=no
+  install_flaresolverr
+  grep -qx flaresolverr "$fixture/registry"
+)
+
 printf 'Manager behavior checks passed.\n'
