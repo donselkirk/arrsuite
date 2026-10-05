@@ -11,7 +11,7 @@ install_flaresolverr() {
   fi
 
   msg_info "Installing FlareSolverr Dependencies"
-  $STD apt-get install -y apt-transport-https xvfb || return
+  $STD apt install -y apt-transport-https xvfb || return
   msg_ok "Installed FlareSolverr Dependencies"
 
   msg_info "Installing Chrome"
@@ -20,7 +20,7 @@ install_flaresolverr() {
     "https://dl.google.com/linux/linux_signing_key.pub" \
     "https://dl.google.com/linux/chrome/deb/" \
     "stable" || return
-  $STD apt update || return
+  apt_update_safe || return
   $STD apt install -y google-chrome-stable || return
   rm -f /etc/apt/sources.list.d/google-chrome.list
   msg_ok "Installed Chrome"

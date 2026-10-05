@@ -523,4 +523,108 @@ if run_manager list unexpected; then
   exit 1
 fi
 
+# Application modules expand STD as the optional command-output wrapper.
+export STD=""
+
+# Exercise the upstream project-aware uv ordering against isolated application trees.
+# Mocks are invoked indirectly by the sourced application module.
+# shellcheck disable=SC2317
+(
+  source <(sed "s|/opt/Byparr|$test_root/byparr|g" "$project_root/apps/byparr.sh")
+  events="$test_root/byparr-events"
+  uv_failure=0
+  start_failure=0
+  msg_info() { :; }
+  msg_ok() { :; }
+  dpkg() { [[ "$1" == --print-architecture ]] && echo amd64 || echo ffmpeg; }
+  install_byparr_dependencies() { :; }
+  write_byparr_service() { :; }
+  register_app() { echo registered >>"$events"; }
+  check_for_gh_release() { return 0; }
+  fetch_and_deploy_gh_release() {
+    local destination="${5:-$test_root/byparr}"
+    mkdir -p "$destination"
+    echo new >"$destination/pyproject.toml"
+    echo deployed >>"$events"
+  }
+  setup_uv() {
+    [[ -f "$UV_PROJECT_DIR/pyproject.toml" ]] || return 1
+    echo "uv:$UV_PROJECT_DIR" >>"$events"
+    return "$uv_failure"
+  }
+  uv() { echo "build:$PWD:$*" >>"$events"; }
+  systemctl() {
+    echo "service:$*" >>"$events"
+    if [[ "$1" == start && "$start_failure" == 1 ]]; then
+      start_failure=0
+      return 1
+    fi
+  }
+
+  : >"$events"
+  install_byparr
+  [[ "$(head -n 2 "$events")" == "$(printf 'deployed\nuv:%s/byparr' "$test_root")" ]]
+  grep -qx registered "$events"
+  uv_failure=1
+  : >"$events"
+  if install_byparr; then
+    echo 'Byparr install ignored uv setup failure.' >&2; exit 1
+  fi
+  if grep -q registered "$events"; then exit 1; fi
+
+  echo retained >"$test_root/byparr/pyproject.toml"
+  : >"$events"
+  if update_byparr; then
+    echo 'Byparr update ignored staged uv setup failure.' >&2; exit 1
+  fi
+  grep -qx retained "$test_root/byparr/pyproject.toml"
+  [[ ! -d "$test_root/byparr.arrsuite-new" ]]
+  if grep -q 'service:stop' "$events"; then exit 1; fi
+  grep -qx "uv:$test_root/byparr.arrsuite-new" "$events"
+
+  uv_failure=0
+  start_failure=1
+  if update_byparr; then
+    echo 'Byparr update ignored startup failure.' >&2; exit 1
+  fi
+  grep -qx retained "$test_root/byparr/pyproject.toml"
+  : >"$events"
+  update_byparr
+  grep -qx new "$test_root/byparr/pyproject.toml"
+  [[ ! -d "$test_root/byparr.arrsuite-previous" ]]
+  uv_line="$(grep -n '^uv:' "$events" | cut -d: -f1)"
+  stop_line="$(grep -n '^service:stop' "$events" | cut -d: -f1)"
+  ((uv_line < stop_line))
+)
+
+# Chrome uses the reviewed refresh helper before package installation.
+# Mocks are invoked indirectly by the sourced application module.
+# shellcheck disable=SC2317
+(
+  source "$project_root/apps/flaresolverr.sh"
+  events="$test_root/flaresolverr-events"
+  refresh_failure=0
+  msg_info() { :; }
+  msg_ok() { :; }
+  dpkg() { echo amd64; }
+  setup_deb822_repo() { echo repo >>"$events"; }
+  apt_update_safe() { echo refresh >>"$events"; return "$refresh_failure"; }
+  apt() { echo "apt:$*" >>"$events"; }
+  rm() { :; }
+  fetch_and_deploy_gh_release() { echo deployed >>"$events"; }
+  write_flaresolverr_service() { :; }
+  systemctl() { :; }
+  register_app() { echo registered >>"$events"; }
+  : >"$events"
+  install_flaresolverr
+  [[ "$(head -n 4 "$events")" == "$(printf '%s\n' \
+    'apt:install -y apt-transport-https xvfb' repo refresh 'apt:install -y google-chrome-stable')" ]]
+  refresh_failure=1
+  : >"$events"
+  if install_flaresolverr; then
+    echo 'FlareSolverr install ignored refresh helper failure.' >&2; exit 1
+  fi
+  if grep -q 'google-chrome-stable\|deployed\|registered' "$events"; then exit 1; fi
+)
+
 printf 'Manager behavior checks passed.\n'
