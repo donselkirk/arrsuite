@@ -523,4 +523,83 @@ if run_manager list unexpected; then
   exit 1
 fi
 
+# Exercise Byparr project-aware setup without touching the live /opt tree.
+# Stubs are invoked by the sourced application module.
+# shellcheck disable=SC2034,SC2317
+(
+  source <(sed "s|/opt/Byparr|$test_root/opt/Byparr|g" "$project_root/apps/byparr.sh")
+  STD=""
+  msg_info() { :; }
+  msg_ok() { :; }
+  dpkg() { [[ "$1" == --print-architecture ]] && printf 'amd64\n' || printf 'ffmpeg\n'; }
+  install_byparr_dependencies() { :; }
+  write_byparr_service() { :; }
+  register_app() { printf 'registered\n' >>"$test_root/byparr-events"; }
+  systemctl() { printf 'service %s\n' "$*" >>"$test_root/byparr-events"; }
+  check_for_gh_release() { return 0; }
+  fetch_and_deploy_gh_release() {
+    local target="${5:-$test_root/opt/Byparr}"
+    mkdir -p "$target"
+    printf '3.13\n' >"$target/.python-version"
+    printf 'fetch\n' >>"$test_root/byparr-events"
+  }
+  setup_uv() {
+    [[ "$UV_PROJECT_DIR" == "$PWD" && -f .python-version ]]
+    printf 'setup\n' >>"$test_root/byparr-events"
+  }
+  uv() {
+    [[ -f .python-version ]]
+    printf 'uv %s\n' "$*" >>"$test_root/byparr-events"
+    [[ "${fail_python:-0}" != 1 || "$*" != 'python install' ]]
+  }
+  install_byparr
+  head -n 5 "$test_root/byparr-events" >"$test_root/byparr-order"
+  printf '%s\n' fetch setup 'uv python install' 'uv sync --link-mode copy' \
+    'uv run python -m invisible_playwright fetch' >"$test_root/byparr-expected"
+  cmp "$test_root/byparr-order" "$test_root/byparr-expected"
+  printf 'previous installation\n' >"$test_root/opt/Byparr/retained"
+  : >"$test_root/byparr-events"
+  fail_python=1
+  if update_byparr; then
+    echo 'Byparr update ignored Python setup failure.' >&2
+    exit 1
+  fi
+  [[ -f "$test_root/opt/Byparr/retained" ]]
+  [[ ! -d "$test_root/opt/Byparr.arrsuite-new" ]]
+  if grep -q '^service ' "$test_root/byparr-events"; then
+    echo 'Byparr stopped the service before Python setup succeeded.' >&2
+    exit 1
+  fi
+  fail_python=0
+  : >"$test_root/byparr-events"
+  update_byparr
+  head -n 5 "$test_root/byparr-events" >"$test_root/byparr-order"
+  cmp "$test_root/byparr-order" "$test_root/byparr-expected"
+  grep -q '^service stop byparr$' "$test_root/byparr-events"
+  [[ -f "$test_root/opt/Byparr/.python-version" ]]
+)
+
+# Chrome repository metadata must use the reviewed safe apt refresh helper.
+# Stubs are invoked by the sourced application module.
+# shellcheck disable=SC2034,SC2317
+(
+  source "$project_root/apps/flaresolverr.sh"
+  STD=""
+  msg_info() { :; }
+  msg_ok() { :; }
+  dpkg() { printf 'amd64\n'; }
+  apt() { printf 'apt %s\n' "$*" >>"$test_root/chrome-events"; }
+  setup_deb822_repo() { printf 'repo\n' >>"$test_root/chrome-events"; }
+  apt_update_safe() { printf 'safe-update\n' >>"$test_root/chrome-events"; }
+  rm() { :; }
+  fetch_and_deploy_gh_release() { return 1; }
+  if install_flaresolverr; then
+    echo 'FlareSolverr install ignored download failure.' >&2
+    exit 1
+  fi
+  printf '%s\n' 'apt install -y apt-transport-https xvfb' repo safe-update \
+    'apt install -y google-chrome-stable' >"$test_root/chrome-expected"
+  cmp "$test_root/chrome-events" "$test_root/chrome-expected"
+)
+
 printf 'Manager behavior checks passed.\n'
