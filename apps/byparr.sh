@@ -53,11 +53,13 @@ install_byparr() {
   fi
 
   install_byparr_dependencies || return
-  setup_uv || return
   fetch_and_deploy_gh_release "Byparr" "ThePhaseless/Byparr" "tarball" "latest" || return
 
   msg_info "Configuring Byparr"
   cd /opt/Byparr
+  UV_PROJECT_DIR="/opt/Byparr" setup_uv || return
+  # The reviewed helper predates project Python detection; let uv read the project pin.
+  $STD uv python install || return
   $STD uv sync --link-mode copy || return
   $STD uv run python -m invisible_playwright fetch || return
   msg_ok "Configured Byparr"
@@ -75,12 +77,13 @@ update_byparr() {
     if ! dpkg -l | grep -q ffmpeg; then
       install_byparr_dependencies || return
     fi
-    setup_uv || return
     rm -rf "$stage_dir" "$stage_home"
     install -d -m 0700 "$stage_home"
     HOME="$stage_home" fetch_and_deploy_gh_release Byparr ThePhaseless/Byparr tarball latest "$stage_dir" \
       || { rm -rf "$stage_dir" "$stage_home"; return 1; }
     cd "$stage_dir"
+    UV_PROJECT_DIR="$stage_dir" setup_uv || { rm -rf "$stage_dir" "$stage_home"; return 1; }
+    $STD uv python install || { rm -rf "$stage_dir" "$stage_home"; return 1; }
     $STD uv sync --link-mode copy || return
     $STD uv run python -m invisible_playwright fetch || return
     systemctl stop byparr || { rm -rf "$stage_dir" "$stage_home"; return 1; }
