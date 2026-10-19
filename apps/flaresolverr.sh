@@ -41,6 +41,14 @@ install_flaresolverr() {
 }
 
 update_flaresolverr() {
+  # Chrome needs a language tag rather than the inherited system locale.
+  # Patch only the missing setting, retaining existing service customizations.
+  local unit="${SYSTEMD_UNIT_DIR:-/etc/systemd/system}/flaresolverr.service"
+  if ! grep -q '^Environment="LANG=' "$unit"; then
+    sed -i '/^\[Service\]$/a Environment="LANG=en-US"' "$unit" || return
+    systemctl daemon-reload || return
+    systemctl restart flaresolverr || return
+  fi
   if check_for_gh_release "flaresolverr" "FlareSolverr/FlareSolverr"; then
     staged_prebuilt_update flaresolverr flaresolverr FlareSolverr/FlareSolverr \
       /opt/flaresolverr "flaresolverr_linux_x64.tar.gz" || return

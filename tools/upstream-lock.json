@@ -56,12 +56,12 @@
       "install": {
         "repository": "community-scripts/ProxmoxVE",
         "path": "install/sonarr-install.sh",
-        "blob": "0f47fb19ca754d7535dfeaee32acc614531c27e9"
+        "blob": "15d1a7af9ec529e63f63a2e728dda1c05a423bf7"
       },
       "update": {
         "repository": "community-scripts/ProxmoxVE",
         "path": "ct/sonarr.sh",
-        "blob": "56525fdf1d8cb1c5b14ca6c66714aecde23d4535"
+        "blob": "8642a398a86218878cf9423dc811d80dbf43c1b0"
       }
     },
     "radarr": {
@@ -116,12 +116,12 @@
       "install": {
         "repository": "community-scripts/ProxmoxVE",
         "path": "install/flaresolverr-install.sh",
-        "blob": "945b41787e75ace8f739d357947946a9707896c2"
+        "blob": "6892d1bf63c54d96123335bf226edb010da0fa61"
       },
       "update": {
         "repository": "community-scripts/ProxmoxVE",
         "path": "ct/flaresolverr.sh",
-        "blob": "394d19b6450f048d69b317ba94d28ca926707d8a"
+        "blob": "9ee2c1f6401199130cf7ec57dcebd997d4b284a0"
       }
     },
     "seerr": {

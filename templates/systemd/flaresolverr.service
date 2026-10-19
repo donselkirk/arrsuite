@@ -9,6 +9,7 @@ RestartSec=5
 Type=simple
 Environment="LOG_LEVEL=info"
 Environment="CAPTCHA_SOLVER=none"
+Environment="LANG=en-US"
 Environment="PORT=8192"
 WorkingDirectory=/opt/flaresolverr
 ExecStart=/opt/flaresolverr/flaresolverr

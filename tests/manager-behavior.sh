@@ -602,4 +602,73 @@ fi
   cmp "$test_root/chrome-events" "$test_root/chrome-expected"
 )
 
+# Sonarr must use the v4 channel for checks and both download paths.
+# shellcheck disable=SC2034,SC2317
+(
+  source "$project_root/apps/sonarr.sh"
+  STD=""
+  msg_info() { :; }
+  msg_ok() { :; }
+  apt() { :; }
+  arch_resolve() { printf 'x64'; }
+  fetch_and_deploy_gh_release() {
+    [[ "$7" == 'v4.' && "$6" == 'Sonarr.main.*.linux-x64.tar.gz' ]]
+    printf 'download\n' >>"$test_root/sonarr-events"
+    return 1
+  }
+  if install_sonarr; then exit 1; fi
+  grep -qx download "$test_root/sonarr-events"
+  check_for_gh_release() { [[ "$1" == Sonarr && "$5" == 'v4.' ]]; }
+  create_pre_update_backup() { printf 'backup\n' >>"$test_root/sonarr-events"; }
+  staged_prebuilt_update() {
+    [[ "$1" == sonarr && "$6" == 0755 && "$7" == 'v4.' ]]
+    printf 'stage\n' >>"$test_root/sonarr-events"
+  }
+  update_sonarr
+  printf '%s\n' download backup stage >"$test_root/sonarr-expected"
+  cmp "$test_root/sonarr-events" "$test_root/sonarr-expected"
+)
+
+# Exercise the real staging function's filter forwarding before service stop.
+# shellcheck disable=SC2317
+(
+  source <(sed -n '/^staged_prebuilt_update() {/,/^}/p' "$project_root/src/arrsuite-manager.sh.in")
+  fetch_and_deploy_gh_release() {
+    [[ "$7" == 'v4.' ]]
+    printf 'filtered\n' >"$test_root/staged-filter"
+    return 1
+  }
+  systemctl() { echo 'Staging failure touched a service.' >&2; exit 1; }
+  if staged_prebuilt_update sonarr Sonarr Sonarr/Sonarr "$test_root/opt/Sonarr" asset 0755 'v4.'; then
+    exit 1
+  fi
+  grep -qx filtered "$test_root/staged-filter"
+)
+
+# Apply the language migration even without an application release, once only.
+# shellcheck disable=SC2034,SC2317
+(
+  source "$project_root/apps/flaresolverr.sh"
+  SYSTEMD_UNIT_DIR="$test_root/systemd"
+  unit="$SYSTEMD_UNIT_DIR/flaresolverr.service"
+  sed '/^Environment="LANG=/d' "$project_root/templates/systemd/flaresolverr.service" >"$unit"
+  printf '# retained customization\n' >>"$unit"
+  systemctl() { printf '%s\n' "$*" >>"$test_root/lang-events"; }
+  check_for_gh_release() { return 1; }
+  update_flaresolverr
+  grep -qx 'Environment="LANG=en-US"' "$unit"
+  grep -qx 'Environment="PORT=8192"' "$unit"
+  grep -qx '# retained customization' "$unit"
+  printf '%s\n' daemon-reload 'restart flaresolverr' >"$test_root/lang-expected"
+  cmp "$test_root/lang-events" "$test_root/lang-expected"
+  cp "$unit" "$test_root/migrated-unit"
+  update_flaresolverr
+  cmp "$unit" "$test_root/migrated-unit"
+  cmp "$test_root/lang-events" "$test_root/lang-expected"
+  sed -i 's/LANG=en-US/LANG=fr-FR/' "$unit"
+  update_flaresolverr
+  grep -qx 'Environment="LANG=fr-FR"' "$unit"
+  cmp "$test_root/lang-events" "$test_root/lang-expected"
+)
+
 printf 'Manager behavior checks passed.\n'
