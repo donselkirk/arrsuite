@@ -213,11 +213,12 @@ because doing so would replace those inputs and require unavailable network
 access. No agent may push `main`, merge, alter release configuration during
 focused adaptation, or bypass pending-marker/allowed-path checks.
 
-The workflow explicitly installs ShellCheck and ripgrep because hosted images
-change independently. It uploads focused reports. Any upstream or release
-failure creates or refreshes one assigned `needs-local-codex` issue containing
-run URL, stage outcomes, artifacts, and repair instructions; recovered issues
-close automatically.
+The weekly job uses Ubuntu 24.04 because Codex's `drop-sudo` setup fails
+on the Ubuntu 26.04 runner. It explicitly installs ShellCheck and ripgrep
+because hosted images change independently. It uploads focused reports. Any
+upstream or release failure creates or refreshes one assigned
+`needs-local-codex` issue containing run URL, stage outcomes, artifacts, and
+repair instructions. Recovered issues close automatically.
 
 Protected `main` accepts only manually approved squash merges. PR validation is
 read-only and never publishes releases. Each resulting main push validates,

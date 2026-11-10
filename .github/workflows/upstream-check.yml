@@ -19,7 +19,9 @@ concurrency:
 jobs:
   check-upstream:
     name: Detect upstream changes, adapt safely, verify, and propose a PR
-    runs-on: ubuntu-latest
+    # Codex drop-sudo cannot restrict the D-Bus socket on Ubuntu 26.04.
+    # https://github.com/openai/codex-action/issues/188
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out main without retaining push credentials
         uses: actions/checkout@v7.0.1
