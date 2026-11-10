@@ -737,14 +737,14 @@ acquire_lock() {
 }
 
 staged_prebuilt_update() {
-  local service="$1" label="$2" repository="$3" app_dir="$4" asset="$5" mode="${6:-0755}"
+  local service="$1" label="$2" repository="$3" app_dir="$4" asset="$5" mode="${6:-0755}" tag_prefix="${7:-}"
   local stage_dir="${app_dir}.arrsuite-new" previous_dir="${app_dir}.arrsuite-previous"
   local stage_home="${app_dir}.arrsuite-home" marker_name
   marker_name="$(printf '%s' "${label,,}" | tr -d ' ')"
 
   rm -rf "$stage_dir" "$stage_home"
   install -d -m 0700 "$stage_home"
-  HOME="$stage_home" fetch_and_deploy_gh_release "$label" "$repository" "prebuild" "latest" "$stage_dir" "$asset" || {
+  HOME="$stage_home" fetch_and_deploy_gh_release "$label" "$repository" "prebuild" "latest" "$stage_dir" "$asset" "$tag_prefix" || {
     rm -rf "$stage_dir" "$stage_home"
     return 1
   }
