@@ -602,4 +602,79 @@ fi
   cmp "$test_root/chrome-events" "$test_root/chrome-expected"
 )
 
+# Sonarr must filter both discovery and deployment, including staged upgrades.
+# shellcheck disable=SC2034,SC2317,SC2329
+(
+  source <(sed "s|/opt/Sonarr|$test_root/opt/Sonarr|g; s|/var/lib/sonarr/|$test_root/sonarr-data/|g" "$project_root/apps/sonarr.sh")
+  source <(sed -n '/^staged_prebuilt_update() {/,/^}/p' "$project_root/src/arrsuite-manager.sh.in")
+  STD=""
+  HOME="$test_root/sonarr-home"
+  mkdir -p "$HOME"
+  msg_info() { :; }
+  msg_ok() { :; }
+  apt() { :; }
+  arch_resolve() { printf '%s\n' "${TEST_ARCH:-x64}"; }
+  write_sonarr_service() { :; }
+  register_app() { :; }
+  systemctl() { [[ "${fail_start:-0}:$1" != 1:start ]]; }
+  check_for_gh_release() {
+    [[ "$*" == 'Sonarr Sonarr/Sonarr   v4.' ]]
+  }
+  create_pre_update_backup() {
+    [[ "$1" == sonarr ]]
+    printf 'backup\n' >>"$test_root/sonarr-events"
+    [[ "${fail_backup:-0}" != 1 ]]
+  }
+  fetch_and_deploy_gh_release() {
+    [[ "$1" == Sonarr && "$2" == Sonarr/Sonarr && "$3" == prebuild && "$4" == latest && "$7" == v4. ]]
+    [[ "$6" == "Sonarr.main.*.linux-${TEST_ARCH:-x64}.tar.gz" ]]
+    printf 'fetch\n' >>"$test_root/sonarr-events"
+    mkdir -p "$5"
+    printf 'new\n' >"$5/Sonarr"
+  }
+  for TEST_ARCH in x64 arm64; do
+    install_sonarr
+    printf 'old\n' >"$test_root/opt/Sonarr/Sonarr"
+    : >"$test_root/sonarr-events"
+    update_sonarr
+    printf 'backup\nfetch\n' >"$test_root/sonarr-expected"
+    cmp "$test_root/sonarr-events" "$test_root/sonarr-expected"
+    grep -qx new "$test_root/opt/Sonarr/Sonarr"
+  done
+  fail_backup=1
+  : >"$test_root/sonarr-events"
+  if update_sonarr; then exit 1; fi
+  [[ "$(cat "$test_root/sonarr-events")" == backup ]]
+  fail_backup=0
+  fail_start=1
+  printf 'old\n' >"$test_root/opt/Sonarr/Sonarr"
+  if update_sonarr; then exit 1; fi
+  grep -qx old "$test_root/opt/Sonarr/Sonarr"
+)
+
+# Migrate skipped FlareSolverr versions without replacing user unit settings.
+# shellcheck disable=SC2034,SC2317,SC2329
+(
+  source "$project_root/apps/flaresolverr.sh"
+  export ARRSUITE_SYSTEMD_UNIT_DIR="$test_root/flaresolverr-units"
+  mkdir -p "$ARRSUITE_SYSTEMD_UNIT_DIR"
+  unit="$ARRSUITE_SYSTEMD_UNIT_DIR/flaresolverr.service"
+  sed '/^Environment="LANG=/d' "$project_root/templates/systemd/flaresolverr.service" >"$unit"
+  printf '# retained user setting\n' >>"$unit"
+  systemctl() { printf '%s\n' "$*" >>"$test_root/lang-events"; }
+  check_for_gh_release() { return 1; }
+  update_flaresolverr
+  grep -qx 'Environment="LANG=en-US"' "$unit"
+  grep -qx 'Environment="PORT=8192"' "$unit"
+  grep -qx '# retained user setting' "$unit"
+  printf 'daemon-reload\nrestart flaresolverr\n' >"$test_root/lang-expected"
+  cmp "$test_root/lang-events" "$test_root/lang-expected"
+  update_flaresolverr
+  cmp "$test_root/lang-events" "$test_root/lang-expected"
+  sed -i 's/LANG=en-US/LANG=fr-FR/' "$unit"
+  update_flaresolverr
+  grep -qx 'Environment="LANG=fr-FR"' "$unit"
+  cmp "$test_root/lang-events" "$test_root/lang-expected"
+)
+
 printf 'Manager behavior checks passed.\n'
