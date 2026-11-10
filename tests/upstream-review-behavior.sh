@@ -61,6 +61,35 @@ grep -qx 'state=none' "$review_root/upstream-report/result.env"
 grep -qx 'application_changes=false' "$review_root/upstream-report/result.env"
 [[ ! -e "$review_root/upstream-review/pending.md" ]]
 
+# Simulate a retired helper path that is available only at its pinned ref.
+helper_ref=1111111111111111111111111111111111111111
+jq --arg ref "$helper_ref" '.helpers["tools.func"].ref = $ref' \
+  "$review_root/tools/upstream-lock.json" >"$test_root/pinned-lock.json"
+mv "$test_root/pinned-lock.json" "$review_root/tools/upstream-lock.json"
+cp "$project_root/tools/check-upstream.sh" "$review_root/tools/"
+mkdir -p "$test_root/bin"
+cat >"$test_root/bin/curl" <<'EOF_CURL'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${@: -1}" in
+  */community-scripts/ProxmoxVE/contents/misc/tools.func\?ref="$HELPER_REF")
+    path=misc/tools.func ;;
+  */community-scripts/ProxmoxVE/contents/install/sonarr-install.sh\?ref=main)
+    path=install/sonarr-install.sh ;;
+  *) exit 22 ;;
+esac
+file="$FIXTURE_ROOT/community-scripts/ProxmoxVE/$path"
+jq -n --arg sha "$(git hash-object "$file")" --arg content "$(base64 -w0 "$file")" \
+  '{sha: $sha, content: $content}'
+EOF_CURL
+chmod +x "$test_root/bin/curl"
+(
+  export PATH="$test_root/bin:$PATH" HELPER_REF="$helper_ref" FIXTURE_ROOT="$review_root/fixture"
+  ARRSUITE_PROJECT_ROOT="$review_root" bash "$project_root/tools/prepare-upstream-review.sh" >/dev/null
+  grep -qx 'state=none' "$review_root/upstream-report/result.env"
+  bash "$review_root/tools/check-upstream.sh" >/dev/null
+)
+
 unsafe_root="$test_root/unsafe"
 make_fixture_project "$unsafe_root"
 printf 'old build helper\n' >"$unsafe_root/vendor/community-scripts/misc/build.func"

@@ -25,7 +25,7 @@ helper_changes=()
 application_changes=()
 
 fetch_source() {
-  local repository="$1" path="$2" destination="$3" metadata_url metadata
+  local repository="$1" path="$2" ref="$3" destination="$4" metadata_url metadata
   if [[ -n "$fixture_dir" ]]; then
     local fixture="${fixture_dir}/${repository}/${path}"
     [[ -f "$fixture" ]] || return 2
@@ -34,7 +34,7 @@ fetch_source() {
     return 0
   fi
 
-  metadata_url="${api_base}/repos/${repository}/contents/${path}?ref=main"
+  metadata_url="${api_base}/repos/${repository}/contents/${path}?ref=${ref}"
   metadata="$(curl "${curl_args[@]}" "$metadata_url")" || return 2
   jq -r '.content' <<<"$metadata" | base64 -d >"$destination"
   jq -r '.sha' <<<"$metadata"
@@ -66,7 +66,7 @@ patch_reviewed_helper() {
 }
 
 printf '# ArrSuite automated upstream review\n\n' >"${report_dir}/summary.md"
-while IFS=$'\t' read -r category name kind repository path locked_blob vendored_path; do
+while IFS=$'\t' read -r category name kind repository path ref locked_blob vendored_path; do
   upstream_file="$(mktemp)"
   current_blob=""
   current_repository="$repository"
@@ -80,10 +80,10 @@ while IFS=$'\t' read -r category name kind repository path locked_blob vendored_
     fi
   fi
   if [[ ! -s "$upstream_file" ]] \
-    && ! current_blob="$(fetch_source "$current_repository" "$path" "$upstream_file")"; then
+    && ! current_blob="$(fetch_source "$current_repository" "$path" "$ref" "$upstream_file")"; then
     rm -f "$upstream_file"
     # shellcheck disable=SC2016 # Markdown backticks are literal.
-    printf -- '- **%s %s:** unable to query `%s/%s`\n' "$name" "$kind" "$repository" "$path" \
+    printf -- '- **%s %s:** unable to query `%s/%s` at `%s`\n' "$name" "$kind" "$current_repository" "$path" "$ref" \
       >>"${report_dir}/summary.md"
     echo "Unable to retrieve all tracked upstream sources; no candidate was generated." >&2
     exit 2
@@ -137,8 +137,8 @@ while IFS=$'\t' read -r category name kind repository path locked_blob vendored_
   fi
   rm -f "$upstream_file"
 done < <(jq -r '
-  (.helpers | to_entries[] | ["helper", .key, "source", .value.repository, .value.path, .value.blob, .value.vendored_path]),
-  (.applications | to_entries[] as $app | $app.value | to_entries[] | ["application", $app.key, .key, .value.repository, .value.path, .value.blob, ""])
+  (.helpers | to_entries[] | ["helper", .key, "source", .value.repository, .value.path, (.value.ref // "main"), .value.blob, .value.vendored_path]),
+  (.applications | to_entries[] as $app | $app.value | to_entries[] | ["application", $app.key, .key, .value.repository, .value.path, "main", .value.blob, ""])
   | @tsv' "$lock_file")
 
 if ((${#application_changes[@]})); then
