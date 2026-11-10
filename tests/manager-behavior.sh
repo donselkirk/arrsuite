@@ -37,7 +37,13 @@ arch_resolve() { printf '%s' "$1"; }
 EOF_FUNCTIONS
 cat >"$test_root/lib/community-tools.sh" <<'EOF_TOOLS'
 fetch_and_deploy_gh_release() { return 1; }
-check_for_gh_release() { return 1; }
+check_for_gh_release() {
+  if [[ "${TEST_SONARR_RATE_LIMIT:-0}" == 1 ]]; then
+    printf '%s\n' "$1" >>"$TEST_ROOT/release-checks.log"
+    [[ "$1" != Sonarr ]] || return 22
+  fi
+  return 1
+}
 setup_uv() { return 1; }
 EOF_TOOLS
 cp "$test_root/lib/community-functions.sh" "$test_root/lib/community-functions.fixture"
@@ -251,6 +257,17 @@ grep -q 'FlareSolverr cannot be installed with Byparr' <<<"$pair_output"
 [[ ! -s "$test_root/installed.apps" ]]
 
 printf '%s\n' sonarr radarr >"$test_root/installed.apps"
+update_output="$(run_manager update sonarr radarr)"
+grep -Fq 'All installed ArrSuite applications are current' <<<"$update_output"
+if update_output="$(TEST_SONARR_RATE_LIMIT=1 run_manager update sonarr radarr 2>&1)"; then
+  echo "A failed release check unexpectedly reported success." >&2
+  exit 1
+fi
+grep -Fq 'Failed to update Sonarr' <<<"$update_output"
+grep -Fq '1 application operation(s) failed; remaining apps were still processed' <<<"$update_output"
+printf '%s\n' Sonarr Radarr >"$test_root/expected-release-checks.log"
+cmp "$test_root/expected-release-checks.log" "$test_root/release-checks.log"
+
 if uninstalled_output="$(run_manager update lidarr 2>&1)"; then
   echo "A targeted update of an uninstalled app unexpectedly succeeded." >&2
   exit 1

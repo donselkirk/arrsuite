@@ -115,7 +115,8 @@ update
 default; all others are OFF. Unknown commands and invalid/uninstalled app
 targets fail concisely, show usage or an install hint, and do not emit Bash
 stack diagnostics. Updates continue through remaining apps after a failure and
-return failure if any operation failed. Removal preserves data unless
+return failure if any operation failed, including failed release lookups.
+Removal preserves data unless
 `--purge`; reset purges and reinstalls. Removal/reset require confirmation
 unless `--yes` is supplied. Interactive confirmation prompts must be visible on
 the controlling terminal. `update` self-updates first, but a self-update network

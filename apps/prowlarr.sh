@@ -38,5 +38,8 @@ update_prowlarr() {
     staged_prebuilt_update prowlarr prowlarr Prowlarr/Prowlarr /opt/Prowlarr \
       "Prowlarr.master*linux-core-x64.tar.gz" 0775 || return
     msg_ok "Updated Prowlarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

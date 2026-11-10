@@ -53,5 +53,8 @@ update_flaresolverr() {
     staged_prebuilt_update flaresolverr flaresolverr FlareSolverr/FlareSolverr \
       /opt/flaresolverr "flaresolverr_linux_x64.tar.gz" || return
     msg_ok "Updated FlareSolverr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

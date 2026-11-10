@@ -74,5 +74,8 @@ update_seerr() {
     rm -rf "$stage_home"
     rm -rf "$previous_dir"
     msg_ok "Updated Seerr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

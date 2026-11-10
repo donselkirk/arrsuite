@@ -83,5 +83,8 @@ update_bazarr() {
     [[ -f "$stage_home/.bazarr" ]] && install -m 0644 "$stage_home/.bazarr" "$HOME/.bazarr"
     rm -rf "$previous_dir" "$stage_home"
     msg_ok "Updated Bazarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

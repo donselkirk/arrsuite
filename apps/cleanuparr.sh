@@ -39,5 +39,8 @@ update_cleanuparr() {
     staged_prebuilt_update cleanuparr Cleanuparr Cleanuparr/Cleanuparr /opt/cleanuparr \
       "*linux-$(arch_resolve).zip" || return
     msg_ok "Updated Cleanuparr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

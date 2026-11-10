@@ -32,5 +32,8 @@ update_radarr() {
     staged_prebuilt_update radarr Radarr Radarr/Radarr /opt/Radarr \
       "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Radarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

@@ -39,3 +39,22 @@ df -h
 
 Application-targeted commands fail cleanly when the requested application is
 not installed and show the corresponding `arrsuite add <app>` command.
+
+## GitHub API rate limit during an update
+
+ArrSuite checks GitHub releases separately for each installed app. Anonymous
+API requests share a limit per public IP address, so several apps can report
+the same rate-limit error during one update. [GitHub API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)
+
+Retry after the rate limit resets, or run the update from a root Bash shell
+inside the LXC with a personal access token for public read access. The prompt
+hides the token and the subshell keeps it scoped to this update.
+
+```bash
+(
+  IFS= read -rsp 'GitHub token: ' GITHUB_TOKEN || exit
+  printf '\n'
+  export GITHUB_TOKEN
+  update
+)
+```

@@ -32,5 +32,8 @@ update_sonarr() {
     staged_prebuilt_update sonarr Sonarr Sonarr/Sonarr /opt/Sonarr \
       "Sonarr.main.*.linux-$(arch_resolve "x64" "arm64").tar.gz" 0755 "v4." || return
     msg_ok "Updated Sonarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

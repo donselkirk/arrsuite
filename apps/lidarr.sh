@@ -32,5 +32,8 @@ update_lidarr() {
     staged_prebuilt_update lidarr lidarr Lidarr/Lidarr /opt/Lidarr \
       "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Lidarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

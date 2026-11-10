@@ -97,5 +97,8 @@ update_byparr() {
     [[ -f "$stage_home/.byparr" ]] && install -m 0644 "$stage_home/.byparr" "$HOME/.byparr"
     rm -rf "$previous_dir" "$stage_home"
     msg_ok "Updated Byparr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }

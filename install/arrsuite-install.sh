@@ -979,6 +979,9 @@ update_sonarr() {
     staged_prebuilt_update sonarr Sonarr Sonarr/Sonarr /opt/Sonarr \
       "Sonarr.main.*.linux-$(arch_resolve "x64" "arm64").tar.gz" 0755 "v4." || return
     msg_ok "Updated Sonarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1030,6 +1033,9 @@ update_radarr() {
     staged_prebuilt_update radarr Radarr Radarr/Radarr /opt/Radarr \
       "Radarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Radarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1081,6 +1087,9 @@ update_lidarr() {
     staged_prebuilt_update lidarr lidarr Lidarr/Lidarr /opt/Lidarr \
       "Lidarr.master*linux-core-$(arch_resolve "x64" "arm64").tar.gz" 0775 || return
     msg_ok "Updated Lidarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1138,6 +1147,9 @@ update_prowlarr() {
     staged_prebuilt_update prowlarr prowlarr Prowlarr/Prowlarr /opt/Prowlarr \
       "Prowlarr.master*linux-core-x64.tar.gz" 0775 || return
     msg_ok "Updated Prowlarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1253,6 +1265,9 @@ update_byparr() {
     [[ -f "$stage_home/.byparr" ]] && install -m 0644 "$stage_home/.byparr" "$HOME/.byparr"
     rm -rf "$previous_dir" "$stage_home"
     msg_ok "Updated Byparr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1330,6 +1345,9 @@ update_flaresolverr() {
     staged_prebuilt_update flaresolverr flaresolverr FlareSolverr/FlareSolverr \
       /opt/flaresolverr "flaresolverr_linux_x64.tar.gz" || return
     msg_ok "Updated FlareSolverr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1425,6 +1443,9 @@ update_seerr() {
     rm -rf "$stage_home"
     rm -rf "$previous_dir"
     msg_ok "Updated Seerr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1530,6 +1551,9 @@ update_bazarr() {
     [[ -f "$stage_home/.bazarr" ]] && install -m 0644 "$stage_home/.bazarr" "$HOME/.bazarr"
     rm -rf "$previous_dir" "$stage_home"
     msg_ok "Updated Bazarr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
@@ -1591,6 +1615,9 @@ update_cleanuparr() {
     staged_prebuilt_update cleanuparr Cleanuparr Cleanuparr/Cleanuparr /opt/cleanuparr \
       "*linux-$(arch_resolve).zip" || return
     msg_ok "Updated Cleanuparr"
+  else
+    local check_status=$?
+    ((check_status == 1)) || return "$check_status"
   fi
 }
 
