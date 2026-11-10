@@ -16,7 +16,7 @@ mkdir -p "$report_dir"
 rm -f "${report_dir}"/*.diff "${report_dir}/summary.md"
 
 printf '# ArrSuite upstream check\n\n' >"${report_dir}/summary.md"
-while IFS=$'\t' read -r category app kind repository path locked_blob vendored_path vendored_sha256; do
+while IFS=$'\t' read -r category app kind repository path ref locked_blob vendored_path vendored_sha256; do
   if [[ "$category" == "helper" && ! -s "${project_root}/${vendored_path}" ]]; then
     printf -- '%s\n' "- **${app}:** vendored helper is missing: \`${vendored_path}\`" | tee -a "${report_dir}/summary.md"
     changed=1
@@ -33,9 +33,9 @@ while IFS=$'\t' read -r category app kind repository path locked_blob vendored_p
       changed=1
     fi
   fi
-  ref_url="${api_base}/repos/${repository}/contents/${path}?ref=main"
+  ref_url="${api_base}/repos/${repository}/contents/${path}?ref=${ref}"
   metadata="$(curl "${curl_args[@]}" "$ref_url")" || {
-    printf -- '%s\n' "- **${app} ${kind}:** unable to query \`${repository}/${path}\`" | tee -a "${report_dir}/summary.md"
+    printf -- '%s\n' "- **${app} ${kind}:** unable to query \`${repository}/${path}\` at \`${ref}\`" | tee -a "${report_dir}/summary.md"
     network_failures=$((network_failures + 1))
     continue
   }
@@ -58,8 +58,8 @@ while IFS=$'\t' read -r category app kind repository path locked_blob vendored_p
     >"${report_dir}/${app}-${kind}.diff" || true
   rm -f "$old_file" "$new_file"
 done < <(jq -r '
-  (.helpers | to_entries[] | ["helper", .key, "source", .value.repository, .value.path, .value.blob, .value.vendored_path, .value.vendored_sha256]),
-  (.applications | to_entries[] as $app | $app.value | to_entries[] | ["application", $app.key, .key, .value.repository, .value.path, .value.blob, "", ""])
+  (.helpers | to_entries[] | ["helper", .key, "source", .value.repository, .value.path, (.value.ref // "main"), .value.blob, .value.vendored_path, .value.vendored_sha256]),
+  (.applications | to_entries[] as $app | $app.value | to_entries[] | ["application", $app.key, .key, .value.repository, .value.path, "main", .value.blob, "", ""])
   | @tsv' "$lock_file")
 
 cat "${report_dir}/summary.md"

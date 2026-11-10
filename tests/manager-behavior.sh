@@ -525,7 +525,7 @@ fi
 
 # Exercise Byparr project-aware setup without touching the live /opt tree.
 # Stubs are invoked by the sourced application module.
-# shellcheck disable=SC2034,SC2317
+# shellcheck disable=SC2034,SC2317,SC2329
 (
   source <(sed "s|/opt/Byparr|$test_root/opt/Byparr|g" "$project_root/apps/byparr.sh")
   STD=""
@@ -581,7 +581,7 @@ fi
 
 # Chrome repository metadata must use the reviewed safe apt refresh helper.
 # Stubs are invoked by the sourced application module.
-# shellcheck disable=SC2034,SC2317
+# shellcheck disable=SC2034,SC2317,SC2329
 (
   source "$project_root/apps/flaresolverr.sh"
   STD=""

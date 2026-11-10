@@ -197,7 +197,11 @@ release-note evidence.
 
 ## 8. Upstream and release automation
 
-`tools/check-upstream.sh` is read-only comparison/reporting. The weekly
+`tools/check-upstream.sh` is read-only comparison/reporting. Both upstream
+checks read the legacy helpers at the immutable commit recorded in the lock
+because ProxmoxVE removed them from `main`. Adopting the replacement
+`community-scripts/core` engine requires a separate compatibility review.
+Application sources continue to track live branches. The weekly
 `.github/workflows/upstream-check.yml` imports only mechanically safe reviewed
 helper changes, locks exact blobs, and creates a merge-ready PR. Semantic app
 changes go to the official Codex GitHub Action using

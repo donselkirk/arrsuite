@@ -4,6 +4,12 @@ ArrSuite tracks reviewed Community Scripts application sources and framework
 helpers in `tools/upstream-lock.json`. Reviewed helper copies are stored under
 `vendor/community-scripts/misc/` and published with every ArrSuite release.
 
+Both checkers look up the legacy helpers at the last ProxmoxVE commit that
+contained them, recorded as each helper's `ref` in the lock. ProxmoxVE removed
+those files after moving its engine to `community-scripts/core`, which uses a
+different loader and directory layout. Moving ArrSuite to that engine
+requires a separate compatibility review.
+
 ## Weekly automated review
 
 Every Monday at 09:17 UTC, GitHub Actions compares all locked Community Scripts
